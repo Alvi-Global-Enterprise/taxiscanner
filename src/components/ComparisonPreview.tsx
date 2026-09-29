@@ -335,8 +335,8 @@ export function ComparisonPreview() {
                     whileTap={{ scale: 0.96 }}
                     style={{
                       ...item.btnStyle,
-                      width: "244px",
-                      height: "76px",
+                      width: "200px",
+                      height: "56px",
                       borderRadius: "9px",
                       border: "none",
                       cursor: "pointer",
@@ -351,7 +351,7 @@ export function ComparisonPreview() {
                       style={{
                         fontFamily: FONT,
                         fontWeight: 700,
-                        fontSize: "25px",
+                        fontSize: "20px",
                         lineHeight: "141%",
                         letterSpacing: "0.01em",
                         color: "#FFFFFF",
