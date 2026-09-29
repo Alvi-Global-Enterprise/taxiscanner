@@ -28,7 +28,7 @@ export function HeroSection() {
     padding: "0 14px 0 38px",
     fontFamily: FONT,
     fontWeight: 400,
-    fontSize: "17px",
+    // fontSize: "17px",
     lineHeight: "141%",
     letterSpacing: "0.01em",
     color: "rgba(0,0,0,0.85)",
@@ -40,7 +40,6 @@ export function HeroSection() {
   const labelStyle: React.CSSProperties = {
     fontFamily: FONT,
     fontWeight: 700,
-    fontSize: "18px",
     lineHeight: "141%",
     letterSpacing: "0.01em",
     color: "#000000",
@@ -64,6 +63,25 @@ export function HeroSection() {
           sizes="100vw"
         />
       </div>
+
+      {/* Blurry gradient backdrop behind content container */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 1,
+          background:
+            "linear-gradient(90deg, rgba(235, 248, 255, 0.94) 0%, rgba(238, 249, 255, 0.88) 32%, rgba(240, 249, 255, 0.6) 50%, rgba(255, 255, 255, 0) 72%)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          maskImage:
+            "linear-gradient(to right, black 0%, black 40%, rgba(0,0,0,0.6) 55%, transparent 72%)",
+          WebkitMaskImage:
+            "linear-gradient(to right, black 0%, black 40%, rgba(0,0,0,0.6) 55%, transparent 72%)",
+          pointerEvents: "none",
+        }}
+      />
 
       {/* Navbar overlaying hero graphic */}
       <Navbar />
@@ -101,14 +119,14 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 22 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.22, ease: "easeOut" }}
+          className="text-[46px] lg:text-[72px] xxl:text-[99px]"
           style={{
             fontFamily: FONT,
             fontWeight: 800,
-            fontSize: "clamp(48px, 6.9vw, 99px)",
             lineHeight: "109%",
             letterSpacing: "0.01em",
             color: "#000000",
-            maxWidth: "814px",
+            maxWidth: "614px",
             marginTop: "16px",
             marginBottom: "0",
           }}
@@ -144,7 +162,7 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.75, delay: 0.48, ease: "easeOut" }}
-          style={{ marginTop: "46px", maxWidth: "1308px" }}
+          style={{ marginTop: "46px", maxWidth: "1008px" }}
         >
           <form onSubmit={onSubmit}>
             <div
@@ -168,7 +186,7 @@ export function HeroSection() {
               >
                 {/* Pickup Location */}
                 <label style={{ display: "block" }}>
-                  <span style={labelStyle}>PICKUP LOCATION</span>
+                  <span className="text-[12px] lg:text-[14px] xxl:text-[18px]" style={labelStyle}>PICKUP LOCATION</span>
                   <div style={{ position: "relative" }}>
                     <MapPin
                       size={16}
@@ -187,13 +205,14 @@ export function HeroSection() {
                       value={pickup}
                       onChange={(e) => setPickup(e.target.value)}
                       style={inputBox}
+                      className="text-[10px] lg:text-[12px] xxl:text-[18px]"
                     />
                   </div>
                 </label>
 
                 {/* Drop-off Location */}
                 <label style={{ display: "block" }}>
-                  <span style={labelStyle}>DROP-OFF LOCATION</span>
+                  <span className="text-[12px] lg:text-[14px] xxl:text-[18px]" style={labelStyle}>DROP-OFF LOCATION</span>
                   <div style={{ position: "relative" }}>
                     <MapPin
                       size={16}
@@ -204,6 +223,7 @@ export function HeroSection() {
                         top: "50%",
                         transform: "translateY(-50%)",
                         pointerEvents: "none",
+
                       }}
                     />
                     <input
@@ -212,13 +232,14 @@ export function HeroSection() {
                       value={dropoff}
                       onChange={(e) => setDropoff(e.target.value)}
                       style={inputBox}
+                      className="text-[10px] lg:text-[12px] xxl:text-[18px]"
                     />
                   </div>
                 </label>
 
                 {/* Date */}
                 <label style={{ display: "block" }}>
-                  <span style={labelStyle}>Date:</span>
+                  <span className="text-[12px] lg:text-[14px] xxl:text-[18px]" style={labelStyle}>Date:</span>
                   <div style={{ position: "relative" }}>
                     <CalendarDays
                       size={16}
@@ -236,13 +257,14 @@ export function HeroSection() {
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
                       style={inputBox}
+                      className="text-[10px] lg:text-[12px] xxl:text-[18px]"
                     />
                   </div>
                 </label>
 
                 {/* Time */}
                 <label style={{ display: "block" }}>
-                  <span style={labelStyle}>Time:</span>
+                  <span className="text-[12px] lg:text-[14px] xxl:text-[18px]" style={labelStyle}>Time:</span>
                   <div style={{ position: "relative" }}>
                     <Clock3
                       size={16}
@@ -260,6 +282,7 @@ export function HeroSection() {
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
                       style={inputBox}
+                      className="text-[10px] lg:text-[12px] xxl:text-[18px]"
                     />
                   </div>
                 </label>
@@ -269,8 +292,9 @@ export function HeroSection() {
                   type="submit"
                   whileHover={{ scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.4)" }}
                   whileTap={{ scale: 0.96 }}
+                  className="text-[12px] lg:text-[14px] xxl:text-[18px]"
                   style={{
-                    width: "185px",
+                    width: "135px",
                     height: "51px",
                     background: "#197DF1",
                     borderRadius: "7px",
@@ -278,7 +302,7 @@ export function HeroSection() {
                     cursor: "pointer",
                     fontFamily: FONT,
                     fontWeight: 700,
-                    fontSize: "18px",
+                    // fontSize: "18px",
                     lineHeight: "20px",
                     color: "#FFFFFF",
                     transition: "background 0.2s",
@@ -324,10 +348,11 @@ export function HeroSection() {
                       <Check size={12} color="#fff" strokeWidth={3} />
                     </span>
                     <span
+                      className="text-[12px] lg:text-[14px] xxl:text-[18px]"
                       style={{
                         fontFamily: FONT,
                         fontWeight: 700,
-                        fontSize: "21px",
+                        // fontSize: "21px",
                         lineHeight: "141%",
                         letterSpacing: "0.01em",
                         color: "rgba(0,0,0,0.55)",

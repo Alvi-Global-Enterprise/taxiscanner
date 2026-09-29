@@ -12,6 +12,14 @@ export const metadata: Metadata = {
   title: "TaxiScanner — Compare Taxi Prices Across the UK",
   description:
     "Enter your journey once and compare taxi fares from local operators in seconds.",
+  icons: {
+    icon: [
+      { url: "/images/favicon.png", type: "image/png" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/images/favicon.png",
+  },
 };
 
 export default function RootLayout({

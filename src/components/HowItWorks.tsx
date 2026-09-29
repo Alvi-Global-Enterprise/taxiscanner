@@ -105,14 +105,14 @@ export function HowItWorks() {
                 className="transition-shadow"
               >
                 {/* Icon area: large light blue circle + small blue circle with step number */}
-                <div style={{ position: "relative", flexShrink: 0, width: "125px", height: "125px" }}>
+                <div style={{ position: "relative", flexShrink: 0, width: "60px", height: "60px" }}>
                   {/* Large light blue circle */}
                   <motion.div
                     whileHover={{ scale: 1.05 }}
                     transition={{ type: "spring", stiffness: 300 }}
                     style={{
-                      width: "125.14px",
-                      height: "125.14px",
+                      width: "65.14px",
+                      height: "65.14px",
                       borderRadius: "50%",
                       background: "#C5ECFF",
                       position: "absolute",
@@ -127,21 +127,21 @@ export function HowItWorks() {
                     <Image
                       src={item.icon}
                       alt={item.title}
-                      width={52}
-                      height={52}
-                      style={{ objectFit: "contain", marginTop: "14px" }}
+                      width={32}
+                      height={32}
+                      style={{ objectFit: "contain", marginTop: "" }}
                     />
                   </motion.div>
                   {/* Small #197DF1 circle with step number */}
                   <div
                     style={{
-                      width: "41.5px",
-                      height: "41.5px",
+                      width: "31.5px",
+                      height: "31.5px",
                       borderRadius: "50%",
                       background: "#197DF1",
                       position: "absolute",
-                      top: "-1px",
-                      left: "3px",
+                      top: "-15px",
+                      left: "-8px",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -169,7 +169,6 @@ export function HowItWorks() {
                     style={{
                       fontFamily: FONT,
                       fontWeight: 700,
-                      fontSize: "20px",
                       lineHeight: "141%",
                       letterSpacing: "0.01em",
                       textTransform: "uppercase",
@@ -177,6 +176,7 @@ export function HowItWorks() {
                       margin: 0,
                       marginBottom: "10px",
                     }}
+                    className="text-[14px] lg:text-[16px] xxl:text-[20px]"
                   >
                     {item.title}
                   </h3>
@@ -184,12 +184,12 @@ export function HowItWorks() {
                     style={{
                       fontFamily: FONT,
                       fontWeight: 400,
-                      fontSize: "16px",
                       lineHeight: "145%",
                       letterSpacing: "0.01em",
                       color: "rgba(0, 0, 0, 0.65)",
                       margin: 0,
                     }}
+                    className="text-[12px] lg:text-[10px] xxl:text-[18px]"
                   >
                     {item.description}
                   </p>

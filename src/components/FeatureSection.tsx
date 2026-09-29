@@ -62,9 +62,9 @@ export function FeatureSection() {
               transition={{ type: "spring", stiffness: 300 }}
               className="flex flex-shrink-0 items-center justify-center"
               style={{
-                width: "100.7px",
-                height: "100.7px",
-                minWidth: "100.7px",
+                width: "70.7px",
+                height: "70.7px",
+                minWidth: "70.7px",
                 borderRadius: "50%",
                 backgroundColor: "#FFFFFF",
                 boxShadow: "0 4px 14px rgba(0, 0, 0, 0.04)",
@@ -73,11 +73,11 @@ export function FeatureSection() {
               <Image
                 src={card.image}
                 alt={card.title}
-                width={48}
-                height={48}
+                width={68}
+                height={68}
                 style={{
-                  width: "48px",
-                  height: "48px",
+                  width: "68px",
+                  height: "68px",
                   objectFit: "contain",
                 }}
               />
@@ -89,12 +89,12 @@ export function FeatureSection() {
                 style={{
                   fontFamily: FONT,
                   fontWeight: 700,
-                  fontSize: "19px",
                   lineHeight: "141%",
                   letterSpacing: "0.01em",
                   color: "#000000",
                   margin: 0,
                 }}
+                className="text-[12px] lg:text-[14px] xxl:text-[18px]"
               >
                 {card.title}
               </h3>
@@ -102,13 +102,14 @@ export function FeatureSection() {
                 style={{
                   fontFamily: FONT,
                   fontWeight: 400,
-                  fontSize: "15px",
+                  // fontSize: "15px",
                   lineHeight: "141%",
                   letterSpacing: "0.01em",
                   color: "rgba(0, 0, 0, 0.7)",
                   margin: 0,
                   marginTop: "4px",
                 }}
+                className="text-[10px] lg:text-[12px] xxl:text-[18px]"
               >
                 {card.description}
               </p>

@@ -65,12 +65,11 @@ export function Navbar() {
               key={link.label}
               href={link.href}
               onClick={() => setActive(link.label)}
-              className="relative"
+              className="relative text-[12px] lg:text-[14px] xxl:text-[18px]"
               whileHover={{ y: -1 }}
               style={{
                 fontFamily: "'Noto Sans JP', 'LINE Seed JP', 'Inter', sans-serif",
                 fontWeight: 700,
-                fontSize: "18px",
                 lineHeight: "20px",
                 color: "#000000",
                 opacity: active === link.label ? 1 : 0.38,
@@ -78,6 +77,7 @@ export function Navbar() {
                 textDecoration: "none",
                 whiteSpace: "nowrap",
               }}
+
             >
               {link.label}
               {active === link.label && (
