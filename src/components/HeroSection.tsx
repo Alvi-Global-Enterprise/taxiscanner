@@ -2,18 +2,109 @@
 
 import { FormEvent, useState } from "react";
 import Image from "next/image";
-import { CalendarDays, Check, Clock3, MapPin } from "lucide-react";
+import { Check, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { trustItems } from "@/lib/data";
 import { Navbar } from "@/components/Navbar";
 
 const FONT = "'Noto Sans JP', 'LINE Seed JP', 'Plus Jakarta Sans', system-ui, sans-serif";
 
+function CalendarFilledIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+      <rect x="2" y="3.5" width="16" height="14" rx="3" fill="#197DF1" />
+      <rect x="5.5" y="1.5" width="1.8" height="3" rx="0.9" fill="#197DF1" stroke="#FFFFFF" strokeWidth="0.8" />
+      <rect x="12.7" y="1.5" width="1.8" height="3" rx="0.9" fill="#197DF1" stroke="#FFFFFF" strokeWidth="0.8" />
+      <circle cx="6.5" cy="9" r="1.1" fill="#FFFFFF" />
+      <circle cx="10" cy="9" r="1.1" fill="#FFFFFF" />
+      <circle cx="13.5" cy="9" r="1.1" fill="#FFFFFF" />
+      <circle cx="6.5" cy="13" r="1.1" fill="#FFFFFF" />
+      <circle cx="10" cy="13" r="1.1" fill="#FFFFFF" />
+      <circle cx="13.5" cy="13" r="1.1" fill="#FFFFFF" />
+    </svg>
+  );
+}
+
+function ClockFilledIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+      <circle cx="10" cy="10" r="8.5" fill="#197DF1" />
+      <path
+        d="M10 5.8V10.2L12.8 12.2"
+        stroke="#FFFFFF"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function BookingCheckbox({
+  label,
+  checked,
+  onClick,
+}: {
+  label: string;
+  checked: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        margin: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "9px",
+        cursor: "pointer",
+        userSelect: "none",
+      }}
+    >
+      <div
+        style={{
+          width: "21px",
+          height: "21px",
+          borderRadius: "5px",
+          background: checked ? "#197DF1" : "#FFFFFF",
+          border: checked ? "1.5px solid #197DF1" : "1.5px solid #CAD8E8",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          transition: "all 0.15s ease",
+          boxShadow: checked ? "0 2px 6px rgba(25, 125, 241, 0.25)" : "none",
+        }}
+      >
+        {checked && <Check size={14} color="#FFFFFF" strokeWidth={3.2} />}
+      </div>
+      <span
+        style={{
+          fontFamily: FONT,
+          fontWeight: 600,
+          fontSize: "15px",
+          lineHeight: "141%",
+          color: "rgba(0,0,0,0.85)",
+          whiteSpace: "nowrap",
+        }}
+        className="text-[13px] lg:text-[14px] xxl:text-[16px]"
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
 export function HeroSection() {
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const [bookingMode, setBookingMode] = useState<"now" | "later">("now");
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -23,12 +114,11 @@ export function HeroSection() {
   const inputBox: React.CSSProperties = {
     width: "100%",
     height: "51px",
-    border: "1px solid #197DF1",
+    border: "1.5px solid #BED2E8",
     borderRadius: "7px",
-    padding: "0 14px 0 38px",
+    padding: "0 14px 0 40px",
     fontFamily: FONT,
     fontWeight: 400,
-    // fontSize: "17px",
     lineHeight: "141%",
     letterSpacing: "0.01em",
     color: "rgba(0,0,0,0.85)",
@@ -162,7 +252,7 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.75, delay: 0.48, ease: "easeOut" }}
-          style={{ marginTop: "46px", maxWidth: "1008px" }}
+          style={{ marginTop: "46px", maxWidth: "1160px" }}
         >
           <form onSubmit={onSubmit}>
             <div
@@ -171,147 +261,372 @@ export function HeroSection() {
                 boxShadow: "-3px 2px 28.5px #C5ECFF",
                 borderRadius: "18px",
                 overflow: "hidden",
+                transition: "all 0.25s ease",
               }}
             >
-              {/* Fields Row */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr 0.65fr 0.65fr auto",
-                  gap: "20px",
-                  padding: "28px 34px 24px",
-                  alignItems: "end",
-                }}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_0.65fr_0.65fr_auto]"
-              >
-                {/* Pickup Location */}
-                <label style={{ display: "block" }}>
-                  <span className="text-[12px] lg:text-[14px] xxl:text-[18px]" style={labelStyle}>PICKUP LOCATION</span>
-                  <div style={{ position: "relative" }}>
-                    <MapPin
-                      size={16}
-                      color="#197DF1"
-                      style={{
-                        position: "absolute",
-                        left: "14px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        pointerEvents: "none",
-                      }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Enter Pickup Location"
-                      value={pickup}
-                      onChange={(e) => setPickup(e.target.value)}
-                      style={inputBox}
-                      className="text-[10px] lg:text-[12px] xxl:text-[18px]"
-                    />
-                  </div>
-                </label>
-
-                {/* Drop-off Location */}
-                <label style={{ display: "block" }}>
-                  <span className="text-[12px] lg:text-[14px] xxl:text-[18px]" style={labelStyle}>DROP-OFF LOCATION</span>
-                  <div style={{ position: "relative" }}>
-                    <MapPin
-                      size={16}
-                      color="#08C5A1"
-                      style={{
-                        position: "absolute",
-                        left: "14px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        pointerEvents: "none",
-
-                      }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Enter Drop-Off Location"
-                      value={dropoff}
-                      onChange={(e) => setDropoff(e.target.value)}
-                      style={inputBox}
-                      className="text-[10px] lg:text-[12px] xxl:text-[18px]"
-                    />
-                  </div>
-                </label>
-
-                {/* Date */}
-                <label style={{ display: "block" }}>
-                  <span className="text-[12px] lg:text-[14px] xxl:text-[18px]" style={labelStyle}>Date:</span>
-                  <div style={{ position: "relative" }}>
-                    <CalendarDays
-                      size={16}
-                      color="#197DF1"
-                      style={{
-                        position: "absolute",
-                        left: "14px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        pointerEvents: "none",
-                      }}
-                    />
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      style={inputBox}
-                      className="text-[10px] lg:text-[12px] xxl:text-[18px]"
-                    />
-                  </div>
-                </label>
-
-                {/* Time */}
-                <label style={{ display: "block" }}>
-                  <span className="text-[12px] lg:text-[14px] xxl:text-[18px]" style={labelStyle}>Time:</span>
-                  <div style={{ position: "relative" }}>
-                    <Clock3
-                      size={16}
-                      color="#197DF1"
-                      style={{
-                        position: "absolute",
-                        left: "14px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        pointerEvents: "none",
-                      }}
-                    />
-                    <input
-                      type="time"
-                      value={time}
-                      onChange={(e) => setTime(e.target.value)}
-                      style={inputBox}
-                      className="text-[10px] lg:text-[12px] xxl:text-[18px]"
-                    />
-                  </div>
-                </label>
-
-                {/* Submit button */}
-                <motion.button
-                  type="submit"
-                  whileHover={{ scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.4)" }}
-                  whileTap={{ scale: 0.96 }}
-                  className="text-[12px] lg:text-[14px] xxl:text-[18px]"
+              {/* Fields Row for Book Now mode */}
+              {bookingMode === "now" ? (
+                <div
                   style={{
-                    width: "135px",
-                    height: "51px",
-                    background: "#197DF1",
-                    borderRadius: "7px",
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: FONT,
-                    fontWeight: 700,
-                    // fontSize: "18px",
-                    lineHeight: "20px",
-                    color: "#FFFFFF",
-                    transition: "background 0.2s",
-                    flexShrink: 0,
+                    padding: "26px 30px 22px",
+                    gap: "16px",
                   }}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.1fr_1.1fr_auto_auto] items-end"
                 >
-                  Compare Prices
-                </motion.button>
-              </div>
+                  {/* Pickup Location */}
+                  <label style={{ display: "block" }}>
+                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
+                      PICKUP LOCATION
+                    </span>
+                    <div style={{ position: "relative" }}>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "14px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          zIndex: 1,
+                        }}
+                      >
+                        <MapPin size={17} fill="#197DF1" color="#197DF1" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Enter Pickup Location"
+                        value={pickup}
+                        onChange={(e) => setPickup(e.target.value)}
+                        style={inputBox}
+                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                      />
+                    </div>
+                  </label>
+
+                  {/* Drop-off Location */}
+                  <label style={{ display: "block" }}>
+                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
+                      DROP-OFF LOCATION
+                    </span>
+                    <div style={{ position: "relative" }}>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "14px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          zIndex: 1,
+                        }}
+                      >
+                        <MapPin size={17} fill="#08C5A1" color="#08C5A1" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Enter Drop-Off Location"
+                        value={dropoff}
+                        onChange={(e) => setDropoff(e.target.value)}
+                        style={inputBox}
+                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                      />
+                    </div>
+                  </label>
+
+                  {/* Booking Mode options (Book Now / Book Later) */}
+                  <div style={{ alignSelf: "end" }}>
+                    <span
+                      className="text-[12px] lg:text-[13px] xxl:text-[17px] hidden lg:block"
+                      style={{ ...labelStyle, visibility: "hidden" }}
+                    >
+                      Booking Mode
+                    </span>
+                    <div
+                      style={{
+                        height: "51px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "24px",
+                        padding: "0 6px",
+                      }}
+                    >
+                      <BookingCheckbox
+                        label="Book Now"
+                        checked={true}
+                        onClick={() => setBookingMode("now")}
+                      />
+                      <BookingCheckbox
+                        label="Book Later"
+                        checked={false}
+                        onClick={() => setBookingMode("later")}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Submit button */}
+                  <div style={{ alignSelf: "end" }}>
+                    <span
+                      className="text-[12px] lg:text-[13px] xxl:text-[17px] hidden lg:block"
+                      style={{ ...labelStyle, visibility: "hidden" }}
+                    >
+                      Action
+                    </span>
+                    <motion.button
+                      type="submit"
+                      whileHover={{ scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.4)" }}
+                      whileTap={{ scale: 0.96 }}
+                      className="text-[13px] lg:text-[14px] xxl:text-[16px] w-full lg:w-auto"
+                      style={{
+                        height: "51px",
+                        padding: "0 24px",
+                        background: "#197DF1",
+                        borderRadius: "7px",
+                        border: "none",
+                        cursor: "pointer",
+                        fontFamily: FONT,
+                        fontWeight: 700,
+                        lineHeight: "20px",
+                        color: "#FFFFFF",
+                        transition: "background 0.2s",
+                        flexShrink: 0,
+                        whiteSpace: "nowrap",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      Compare Prices
+                    </motion.button>
+                  </div>
+                </div>
+              ) : (
+                /* Fields Row for Book Later mode — Single Row, same compact height! */
+                <div
+                  style={{
+                    padding: "26px 30px 22px",
+                    gap: "14px",
+                  }}
+                  className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_auto_0.75fr_0.75fr_auto] items-end"
+                >
+                  {/* Pickup Location */}
+                  <label style={{ display: "block" }}>
+                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
+                      PICKUP LOCATION
+                    </span>
+                    <div style={{ position: "relative" }}>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "14px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          zIndex: 1,
+                        }}
+                      >
+                        <MapPin size={17} fill="#197DF1" color="#197DF1" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Enter Pickup Location"
+                        value={pickup}
+                        onChange={(e) => setPickup(e.target.value)}
+                        style={inputBox}
+                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                      />
+                    </div>
+                  </label>
+
+                  {/* Drop-off Location */}
+                  <label style={{ display: "block" }}>
+                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
+                      DROP-OFF LOCATION
+                    </span>
+                    <div style={{ position: "relative" }}>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "14px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          zIndex: 1,
+                        }}
+                      >
+                        <MapPin size={17} fill="#08C5A1" color="#08C5A1" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Enter Drop-Off Location"
+                        value={dropoff}
+                        onChange={(e) => setDropoff(e.target.value)}
+                        style={inputBox}
+                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                      />
+                    </div>
+                  </label>
+
+                  {/* Booking Mode Checkboxes */}
+                  <div style={{ alignSelf: "end" }}>
+                    <span
+                      className="text-[12px] lg:text-[13px] xxl:text-[17px]"
+                      style={{
+                        ...labelStyle,
+                        color: "rgba(0,0,0,0.55)",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Booking Mode
+                    </span>
+                    <div
+                      style={{
+                        height: "51px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "18px",
+                        padding: "0 4px",
+                      }}
+                    >
+                      <BookingCheckbox
+                        label="Book Now"
+                        checked={false}
+                        onClick={() => setBookingMode("now")}
+                      />
+                      <BookingCheckbox
+                        label="Book Later"
+                        checked={true}
+                        onClick={() => setBookingMode("later")}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Date */}
+                  <label style={{ display: "block" }}>
+                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
+                      Date
+                    </span>
+                    <div style={{ position: "relative" }}>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "12px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          zIndex: 1,
+                        }}
+                      >
+                        <CalendarFilledIcon size={17} />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Select Date"
+                        value={date}
+                        onFocus={(e) => (e.target.type = "date")}
+                        onBlur={(e) => {
+                          if (!e.target.value) e.target.type = "text";
+                        }}
+                        onClick={(e) => {
+                          if ("showPicker" in e.currentTarget) {
+                            try {
+                              e.currentTarget.showPicker();
+                            } catch {}
+                          }
+                        }}
+                        onChange={(e) => setDate(e.target.value)}
+                        style={{ ...inputBox, padding: "0 10px 0 36px", cursor: "pointer" }}
+                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                      />
+                    </div>
+                  </label>
+
+                  {/* Time */}
+                  <label style={{ display: "block" }}>
+                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
+                      Time
+                    </span>
+                    <div style={{ position: "relative" }}>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "12px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          zIndex: 1,
+                        }}
+                      >
+                        <ClockFilledIcon size={17} />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Select Time"
+                        value={time}
+                        onFocus={(e) => (e.target.type = "time")}
+                        onBlur={(e) => {
+                          if (!e.target.value) e.target.type = "text";
+                        }}
+                        onClick={(e) => {
+                          if ("showPicker" in e.currentTarget) {
+                            try {
+                              e.currentTarget.showPicker();
+                            } catch {}
+                          }
+                        }}
+                        onChange={(e) => setTime(e.target.value)}
+                        style={{ ...inputBox, padding: "0 10px 0 36px", cursor: "pointer" }}
+                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                      />
+                    </div>
+                  </label>
+
+                  {/* Submit button */}
+                  <div style={{ alignSelf: "end" }}>
+                    <span
+                      className="text-[12px] lg:text-[13px] xxl:text-[17px] hidden xl:block"
+                      style={{ ...labelStyle, visibility: "hidden" }}
+                    >
+                      Action
+                    </span>
+                    <motion.button
+                      type="submit"
+                      whileHover={{ scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.4)" }}
+                      whileTap={{ scale: 0.96 }}
+                      className="text-[13px] lg:text-[14px] xxl:text-[16px] w-full xl:w-auto"
+                      style={{
+                        height: "51px",
+                        padding: "0 22px",
+                        background: "#197DF1",
+                        borderRadius: "7px",
+                        border: "none",
+                        cursor: "pointer",
+                        fontFamily: FONT,
+                        fontWeight: 700,
+                        lineHeight: "20px",
+                        color: "#FFFFFF",
+                        transition: "background 0.2s",
+                        flexShrink: 0,
+                        whiteSpace: "nowrap",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      Compare Prices
+                    </motion.button>
+                  </div>
+                </div>
+              )}
 
               {/* Trust Badges Row */}
               <div
