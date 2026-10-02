@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const base = (process.env.COMPARE_API_BASE || DEFAULT_BASE).replace(/\/$/, "");
+    const base = (DEFAULT_BASE).replace(/\/$/, "");
     const upstream = await fetch(`${base}/compare`, {
       method: "POST",
       headers: {
