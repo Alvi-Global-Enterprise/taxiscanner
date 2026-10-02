@@ -99,16 +99,39 @@ function BookingCheckbox({
   );
 }
 
-export function HeroSection() {
+type HeroSectionProps = {
+  onCompare?: (payload: { pickup: string; dropoff: string }) => Promise<void> | void;
+  comparing?: boolean;
+  compareError?: string | null;
+};
+
+export function HeroSection({
+  onCompare,
+  comparing = false,
+  compareError = null,
+}: HeroSectionProps) {
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [bookingMode, setBookingMode] = useState<"now" | "later">("now");
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    const pickupValue = pickup.trim();
+    const dropoffValue = dropoff.trim();
+
+    if (!pickupValue || !dropoffValue) {
+      setLocalError("Please enter both pickup and drop-off locations.");
+      return;
+    }
+
+    setLocalError(null);
+    await onCompare?.({ pickup: pickupValue, dropoff: dropoffValue });
   };
+
+  const formError = localError || compareError;
 
   /* shared input box style */
   const inputBox: React.CSSProperties = {
@@ -300,6 +323,8 @@ export function HeroSection() {
                         onChange={(e) => setPickup(e.target.value)}
                         style={inputBox}
                         className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                        required
+                        disabled={comparing}
                       />
                     </div>
                   </label>
@@ -331,6 +356,8 @@ export function HeroSection() {
                         onChange={(e) => setDropoff(e.target.value)}
                         style={inputBox}
                         className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                        required
+                        disabled={comparing}
                       />
                     </div>
                   </label>
@@ -375,8 +402,13 @@ export function HeroSection() {
                     </span>
                     <motion.button
                       type="submit"
-                      whileHover={{ scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.4)" }}
-                      whileTap={{ scale: 0.96 }}
+                      disabled={comparing}
+                      whileHover={
+                        comparing
+                          ? undefined
+                          : { scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.4)" }
+                      }
+                      whileTap={comparing ? undefined : { scale: 0.96 }}
                       className="text-[13px] lg:text-[14px] xxl:text-[16px] w-full lg:w-auto"
                       style={{
                         height: "51px",
@@ -384,7 +416,8 @@ export function HeroSection() {
                         background: "#197DF1",
                         borderRadius: "7px",
                         border: "none",
-                        cursor: "pointer",
+                        cursor: comparing ? "wait" : "pointer",
+                        opacity: comparing ? 0.75 : 1,
                         fontFamily: FONT,
                         fontWeight: 700,
                         lineHeight: "20px",
@@ -397,7 +430,7 @@ export function HeroSection() {
                         justifyContent: "center",
                       }}
                     >
-                      Compare Prices
+                      {comparing ? "Comparing..." : "Compare Prices"}
                     </motion.button>
                   </div>
                 </div>
@@ -437,6 +470,8 @@ export function HeroSection() {
                         onChange={(e) => setPickup(e.target.value)}
                         style={inputBox}
                         className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                        required
+                        disabled={comparing}
                       />
                     </div>
                   </label>
@@ -468,6 +503,8 @@ export function HeroSection() {
                         onChange={(e) => setDropoff(e.target.value)}
                         style={inputBox}
                         className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
+                        required
+                        disabled={comparing}
                       />
                     </div>
                   </label>
@@ -600,8 +637,13 @@ export function HeroSection() {
                     </span>
                     <motion.button
                       type="submit"
-                      whileHover={{ scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.4)" }}
-                      whileTap={{ scale: 0.96 }}
+                      disabled={comparing}
+                      whileHover={
+                        comparing
+                          ? undefined
+                          : { scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.4)" }
+                      }
+                      whileTap={comparing ? undefined : { scale: 0.96 }}
                       className="text-[13px] lg:text-[14px] xxl:text-[16px] w-full xl:w-auto"
                       style={{
                         height: "51px",
@@ -609,7 +651,8 @@ export function HeroSection() {
                         background: "#197DF1",
                         borderRadius: "7px",
                         border: "none",
-                        cursor: "pointer",
+                        cursor: comparing ? "wait" : "pointer",
+                        opacity: comparing ? 0.75 : 1,
                         fontFamily: FONT,
                         fontWeight: 700,
                         lineHeight: "20px",
@@ -622,10 +665,25 @@ export function HeroSection() {
                         justifyContent: "center",
                       }}
                     >
-                      Compare Prices
+                      {comparing ? "Comparing..." : "Compare Prices"}
                     </motion.button>
                   </div>
                 </div>
+              )}
+
+              {formError && (
+                <p
+                  style={{
+                    margin: 0,
+                    padding: "0 30px 14px",
+                    fontFamily: FONT,
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "#DC2626",
+                  }}
+                >
+                  {formError}
+                </p>
               )}
 
               {/* Trust Badges Row */}

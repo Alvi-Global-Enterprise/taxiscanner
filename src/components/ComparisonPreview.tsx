@@ -2,75 +2,104 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import {
+  CompareData,
+  CompareQuote,
+  formatPickupEta,
+  formatQuotePrice,
+} from "@/lib/compareApi";
 
 const FONT = "'Noto Sans JP', 'LINE Seed JP', 'Plus Jakarta Sans', system-ui, sans-serif";
 
-const comparisons = [
+const PROVIDER_LOGOS: Record<string, string> = {
+  uber: "/images/companies/uber.png",
+  bolt: "/images/companies/bolt.png",
+  streetcars: "/images/companies/streetcars.png",
+  veezu: "/images/companies/veezu.png",
+};
+
+const PROVIDER_COLORS: Record<string, string> = {
+  uber: "#000000",
+  bolt: "#34D186",
+  streetcars: "#197DF1",
+  veezu: "#0ABCA5",
+};
+
+const FALLBACK_ROWS = [
   {
+    key: "citycab",
     logo: "/images/companies/citycab.png",
     name: "CityCab",
+    ratingLabel: "4.8(512)",
     rating: 4.8,
-    ratingCount: 512,
     eta: "6 mins",
     vehicle: "Standard Saloon",
-    passengers: "Up to 4 passengers",
+    detail: "Up to 4 passengers",
     price: "£18.50",
-    btnStyle: {
-      background: "linear-gradient(180deg, #4EE2CA 0%, #0ABCA5 100%)",
-      boxShadow: "0 4px 14px rgba(10, 188, 165, 0.25)",
-    },
+    bookingUrl: null as string | null,
+    highlight: true,
   },
   {
+    key: "swiftride",
     logo: "/images/companies/swiftride.png",
     name: "Swift Ride",
+    ratingLabel: "4.6(258)",
     rating: 4.6,
-    ratingCount: 258,
     eta: "8 mins",
     vehicle: "Executive Car",
-    passengers: "Up to 4 passengers",
+    detail: "Up to 4 passengers",
     price: "£21.20",
-    btnStyle: {
-      background: "#197DF1",
-      boxShadow: "0 4px 14px rgba(25, 125, 241, 0.25)",
-    },
+    bookingUrl: null as string | null,
+    highlight: false,
   },
   {
+    key: "urbantaxi",
     logo: "/images/companies/urbantaxi.png",
     name: "Urban Taxi",
+    ratingLabel: "4.4(489)",
     rating: 4.4,
-    ratingCount: 489,
     eta: "10 mins",
     vehicle: "Standard Saloon",
-    passengers: "Up to 4 passengers",
+    detail: "Up to 4 passengers",
     price: "£23.00",
-    btnStyle: {
-      background: "#197DF1",
-      boxShadow: "0 4px 14px rgba(25, 125, 241, 0.25)",
-    },
+    bookingUrl: null as string | null,
+    highlight: false,
   },
   {
+    key: "primecabs",
     logo: "/images/companies/primecabs.png",
     name: "Prime Cabs",
+    ratingLabel: "4.7(396)",
     rating: 4.7,
-    ratingCount: 396,
     eta: "6 mins",
     vehicle: "MPV",
-    passengers: "Up to 4 passengers",
+    detail: "Up to 4 passengers",
     price: "£26.50",
-    btnStyle: {
-      background: "#197DF1",
-      boxShadow: "0 4px 14px rgba(25, 125, 241, 0.25)",
-    },
+    bookingUrl: null as string | null,
+    highlight: false,
   },
 ];
 
-// Horizontal divider matching Figma opacity: 0.2; border: 4px solid #197DF1
+type PreviewRow = {
+  key: string;
+  logo?: string;
+  name: string;
+  ratingLabel: string | null;
+  rating: number | null;
+  eta: string;
+  vehicle: string;
+  detail: string;
+  price: string;
+  bookingUrl: string | null;
+  highlight: boolean;
+  provider?: string;
+};
+
 const DIVIDER_LINE: React.CSSProperties = {
   borderBottom: "1.5px solid rgba(25, 125, 241, 0.22)",
   width: "100%",
 };
 
-// Vertical divider: 52.69px tall bar, vertically centered, 2px wide, light blue
 function VerticalDivider() {
   return (
     <div
@@ -87,11 +116,53 @@ function VerticalDivider() {
   );
 }
 
-export function ComparisonPreview() {
+function mapQuotesToRows(data: CompareData): PreviewRow[] {
+  const available = data.quotes.filter((q) => q.is_available !== false);
+  const sorted = [...available].sort((a, b) => a.min_price - b.min_price);
+  const cheapest = sorted[0]?.provider;
+
+  return sorted.map((quote: CompareQuote) => ({
+    key: quote.provider,
+    logo: PROVIDER_LOGOS[quote.provider.toLowerCase()],
+    name: quote.display_name,
+    ratingLabel: null,
+    rating: null,
+    eta: formatPickupEta(quote.estimated_pickup_minutes),
+    vehicle:
+      quote.distance_miles != null
+        ? `${quote.distance_miles.toFixed(1)} miles`
+        : data.route?.summary || "Route estimate",
+    detail:
+      quote.estimated_duration_minutes != null
+        ? `${quote.estimated_duration_minutes} min trip`
+        : quote.quote_type === "estimate"
+          ? "Indicative estimate"
+          : quote.quote_type,
+    price: formatQuotePrice(quote),
+    bookingUrl: quote.booking_url,
+    highlight: quote.provider === cheapest,
+    provider: quote.provider,
+  }));
+}
+
+type ComparisonPreviewProps = {
+  data?: CompareData | null;
+  loading?: boolean;
+  error?: string | null;
+};
+
+export function ComparisonPreview({
+  data = null,
+  loading = false,
+  error = null,
+}: ComparisonPreviewProps) {
+  const liveRows = data ? mapQuotesToRows(data) : null;
+  const rows: PreviewRow[] = liveRows ?? FALLBACK_ROWS;
+  const isLive = Boolean(liveRows);
+
   return (
-    <section id="about" style={{ padding: "80px 0" }}>
+    <section id="comparison" style={{ padding: "80px 0" }}>
       <div className="mx-auto w-full max-w-[1720px] px-4 sm:px-6 lg:px-[96px] xl:px-[113px]">
-        {/* Section Heading */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -125,263 +196,428 @@ export function ComparisonPreview() {
               marginBottom: 0,
             }}
           >
-            Compare Taxi Options at a Glance
+            {isLive
+              ? "Live quotes for your journey"
+              : "Compare Taxi Options at a Glance"}
           </p>
+
+          {isLive && data && (
+            <p
+              style={{
+                fontFamily: FONT,
+                fontWeight: 500,
+                fontSize: "15px",
+                lineHeight: "150%",
+                color: "rgba(0,0,0,0.65)",
+                marginTop: "18px",
+                maxWidth: "720px",
+                marginLeft: "auto",
+                marginRight: "auto",
+              }}
+            >
+              {data.pickup.formatted_address} → {data.dropoff.formatted_address}
+              {data.route ? (
+                <>
+                  {" "}
+                  · {data.route.distance_miles.toFixed(1)} miles ·{" "}
+                  {data.route.duration_minutes} mins
+                </>
+              ) : null}
+            </p>
+          )}
         </motion.div>
 
-        {/* Table Container with horizontal scroll on small viewports */}
+        {loading && (
+          <p
+            style={{
+              textAlign: "center",
+              fontFamily: FONT,
+              fontWeight: 600,
+              fontSize: "16px",
+              color: "#197DF1",
+              marginBottom: "28px",
+            }}
+          >
+            Fetching live taxi quotes…
+          </p>
+        )}
+
+        {error && !loading && (
+          <p
+            style={{
+              textAlign: "center",
+              fontFamily: FONT,
+              fontWeight: 600,
+              fontSize: "15px",
+              color: "#DC2626",
+              marginBottom: "28px",
+            }}
+          >
+            {error}
+          </p>
+        )}
+
         <div style={{ width: "100%", overflowX: "auto" }}>
-          <div style={{ minWidth: "1280px" }}>
-            {/* Top horizontal divider above first row */}
+          <div style={{ minWidth: "1180px" }}>
             <div style={DIVIDER_LINE} />
 
-            {comparisons.map((item, idx) => (
-              <motion.div
-                key={item.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-30px" }}
-                transition={{ duration: 0.5, delay: idx * 0.12, ease: "easeOut" }}
+            {rows.length === 0 && !loading ? (
+              <p
+                style={{
+                  textAlign: "center",
+                  fontFamily: FONT,
+                  padding: "48px 20px",
+                  color: "rgba(0,0,0,0.55)",
+                }}
               >
-                <motion.div
-                  whileHover={{ backgroundColor: "rgba(229, 241, 253, 0.45)" }}
-                  transition={{ duration: 0.2 }}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "185px auto minmax(210px, 1.2fr) auto minmax(110px, 0.8fr) auto minmax(210px, 1.2fr) auto minmax(115px, 0.8fr) auto 244px",
-                    alignItems: "center",
-                    minHeight: "126px",
-                    padding: "16px 20px",
-                    borderRadius: "14px",
-                  }}
-                >
-                  {/* 1. Logo */}
+                No quotes available for this route right now.
+              </p>
+            ) : (
+              rows.map((item, idx) => {
+                const btnStyle = item.highlight
+                  ? {
+                      background: "linear-gradient(180deg, #4EE2CA 0%, #0ABCA5 100%)",
+                      boxShadow: "0 4px 14px rgba(10, 188, 165, 0.25)",
+                    }
+                  : {
+                      background: "#197DF1",
+                      boxShadow: "0 4px 14px rgba(25, 125, 241, 0.25)",
+                    };
+
+                return (
                   <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                    style={{
-                      width: "185px",
-                      height: "85px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
+                    key={item.key}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-30px" }}
+                    transition={{ duration: 0.5, delay: idx * 0.12, ease: "easeOut" }}
                   >
-                    <Image
-                      src={item.logo}
-                      alt={item.name}
-                      width={185}
-                      height={85}
-                      style={{
-                        width: "185px",
-                        height: "85px",
-                        objectFit: "contain",
-                        borderRadius: "17px",
-                      }}
-                    />
-                  </motion.div>
-
-                  {/* 2. Vertical Divider 1 */}
-                  <VerticalDivider />
-
-                  {/* 3. Company Name + Star Rating */}
-                  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                    <p
-                      style={{
-                        fontFamily: FONT,
-                        fontWeight: 700,
-                        fontSize: "35px",
-                        lineHeight: "141%",
-                        letterSpacing: "0.01em",
-                        color: "#000000",
-                        margin: 0,
-                      }}
-                    >
-                      {item.name}
-                    </p>
-                    <div
+                    <motion.div
+                      whileHover={{ backgroundColor: "rgba(229, 241, 253, 0.45)" }}
+                      transition={{ duration: 0.2 }}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "5px",
-                        marginTop: "4px",
+                        gap: "0",
+                        minHeight: "126px",
+                        padding: "16px 20px",
+                        borderRadius: "14px",
+                        opacity: loading ? 0.55 : 1,
                       }}
                     >
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <svg
-                          key={s}
-                          width="21"
-                          height="21"
-                          viewBox="0 0 24 24"
-                          fill={s <= Math.round(item.rating) ? "#FFB030" : "#E2E8F0"}
-                        >
-                          <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
-                        </svg>
-                      ))}
-                      <span
+                      {/* Logo / brand badge */}
+                      <div
                         style={{
-                          fontFamily: FONT,
-                          fontWeight: 400,
-                          fontSize: "17px",
-                          lineHeight: "141%",
-                          letterSpacing: "0.01em",
-                          color: "#000000",
-                          marginLeft: "4px",
+                          width: "160px",
+                          flexShrink: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
                         }}
                       >
-                        {item.rating}({item.ratingCount})
-                      </span>
-                    </div>
-                  </div>
+                        {item.logo ? (
+                          <div
+                            style={{
+                              width: "140px",
+                              height: "70px",
+                              borderRadius: "14px",
+                              background: "#FFFFFF",
+                              border: "1px solid rgba(15, 23, 42, 0.08)",
+                              boxShadow: "0 4px 14px rgba(15, 23, 42, 0.06)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              overflow: "hidden",
+                              padding: "8px",
+                            }}
+                          >
+                            <Image
+                              src={item.logo}
+                              alt={`${item.name} logo`}
+                              width={120}
+                              height={54}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "contain",
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              width: "140px",
+                              height: "64px",
+                              borderRadius: "12px",
+                              background:
+                                PROVIDER_COLORS[item.provider?.toLowerCase() || ""] ||
+                                "#197DF1",
+                              color: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontFamily: FONT,
+                              fontWeight: 800,
+                              fontSize: "20px",
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            {item.name}
+                          </div>
+                        )}
+                      </div>
 
-                  {/* 4. Vertical Divider 2 */}
-                  <VerticalDivider />
+                      <VerticalDivider />
 
-                  {/* 5. ETA */}
-                  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                    <p
-                      style={{
-                        fontFamily: FONT,
-                        fontWeight: 700,
-                        fontSize: "23px",
-                        lineHeight: "141%",
-                        letterSpacing: "0.01em",
-                        color: "#000000",
-                        margin: 0,
-                      }}
-                    >
-                      {item.eta}
-                    </p>
-                    <p
-                      style={{
-                        fontFamily: FONT,
-                        fontWeight: 700,
-                        fontSize: "18px",
-                        lineHeight: "141%",
-                        letterSpacing: "0.01em",
-                        color: "#000000",
-                        opacity: 0.44,
-                        margin: 0,
-                        marginTop: "2px",
-                      }}
-                    >
-                      Estimated ETA
-                    </p>
-                  </div>
+                      {/* Name */}
+                      <div
+                        style={{
+                          flex: "1 1 200px",
+                          minWidth: "180px",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                          paddingRight: "8px",
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontFamily: FONT,
+                            fontWeight: 700,
+                            fontSize: "28px",
+                            lineHeight: "130%",
+                            letterSpacing: "0.01em",
+                            color: "#000000",
+                            margin: 0,
+                          }}
+                        >
+                          {item.name}
+                        </p>
+                        {item.rating != null && item.ratingLabel ? (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              marginTop: "4px",
+                            }}
+                          >
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <svg
+                                key={s}
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill={
+                                  s <= Math.round(item.rating!) ? "#FFB030" : "#E2E8F0"
+                                }
+                              >
+                                <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26" />
+                              </svg>
+                            ))}
+                            <span
+                              style={{
+                                fontFamily: FONT,
+                                fontWeight: 400,
+                                fontSize: "15px",
+                                color: "#000000",
+                                marginLeft: "4px",
+                              }}
+                            >
+                              {item.ratingLabel}
+                            </span>
+                          </div>
+                        ) : (
+                          <p
+                            style={{
+                              fontFamily: FONT,
+                              fontWeight: 600,
+                              fontSize: "14px",
+                              color: "rgba(0,0,0,0.45)",
+                              margin: "6px 0 0",
+                            }}
+                          >
+                            Live estimate
+                          </p>
+                        )}
+                      </div>
 
-                  {/* 6. Vertical Divider 3 */}
-                  <VerticalDivider />
+                      <VerticalDivider />
 
-                  {/* 7. Vehicle */}
-                  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                    <p
-                      style={{
-                        fontFamily: FONT,
-                        fontWeight: 700,
-                        fontSize: "23px",
-                        lineHeight: "141%",
-                        letterSpacing: "0.01em",
-                        color: "#000000",
-                        margin: 0,
-                      }}
-                    >
-                      {item.vehicle}
-                    </p>
-                    <p
-                      style={{
-                        fontFamily: FONT,
-                        fontWeight: 700,
-                        fontSize: "18px",
-                        lineHeight: "141%",
-                        letterSpacing: "0.01em",
-                        color: "#000000",
-                        opacity: 0.44,
-                        margin: 0,
-                        marginTop: "2px",
-                      }}
-                    >
-                      {item.passengers}
-                    </p>
-                  </div>
+                      {/* ETA */}
+                      <div
+                        style={{
+                          width: "130px",
+                          flexShrink: 0,
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontFamily: FONT,
+                            fontWeight: 700,
+                            fontSize: "20px",
+                            lineHeight: "130%",
+                            color: "#000000",
+                            margin: 0,
+                          }}
+                        >
+                          {item.eta}
+                        </p>
+                        <p
+                          style={{
+                            fontFamily: FONT,
+                            fontWeight: 700,
+                            fontSize: "14px",
+                            color: "#000000",
+                            opacity: 0.44,
+                            margin: "2px 0 0",
+                          }}
+                        >
+                          Estimated ETA
+                        </p>
+                      </div>
 
-                  {/* 8. Vertical Divider 4 */}
-                  <VerticalDivider />
+                      <VerticalDivider />
 
-                  {/* 9. Price */}
-                  <div style={{ display: "flex", alignItems: "center" }}>
-                    <p
-                      style={{
-                        fontFamily: FONT,
-                        fontWeight: 700,
-                        fontSize: "32px",
-                        lineHeight: "141%",
-                        letterSpacing: "0.01em",
-                        color: "#000000",
-                        margin: 0,
-                      }}
-                    >
-                      {item.price}
-                    </p>
-                  </div>
+                      {/* Distance / trip */}
+                      <div
+                        style={{
+                          flex: "1 1 160px",
+                          minWidth: "140px",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontFamily: FONT,
+                            fontWeight: 700,
+                            fontSize: "20px",
+                            lineHeight: "130%",
+                            color: "#000000",
+                            margin: 0,
+                          }}
+                        >
+                          {item.vehicle}
+                        </p>
+                        <p
+                          style={{
+                            fontFamily: FONT,
+                            fontWeight: 700,
+                            fontSize: "14px",
+                            color: "#000000",
+                            opacity: 0.44,
+                            margin: "2px 0 0",
+                          }}
+                        >
+                          {item.detail}
+                        </p>
+                      </div>
 
-                  {/* 10. Vertical Divider 5 */}
-                  <VerticalDivider />
+                      <VerticalDivider />
 
-                  {/* 11. View Deal button */}
-                  <motion.button
-                    whileHover={{ scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.35)" }}
-                    whileTap={{ scale: 0.96 }}
-                    style={{
-                      ...item.btnStyle,
-                      width: "200px",
-                      height: "56px",
-                      borderRadius: "9px",
-                      border: "none",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "12px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: FONT,
-                        fontWeight: 700,
-                        fontSize: "20px",
-                        lineHeight: "141%",
-                        letterSpacing: "0.01em",
-                        color: "#FFFFFF",
-                      }}
-                    >
-                      View Deal
-                    </span>
-                    {/* Right Arrow Icon */}
-                    <svg
-                      width="22"
-                      height="15"
-                      viewBox="0 0 22 15"
-                      fill="none"
-                      style={{ flexShrink: 0, marginTop: "1px" }}
-                    >
-                      <path
-                        d="M1 7.5H20M14 1.5L20 7.5L14 13.5"
-                        stroke="#FFFFFF"
-                        strokeWidth="2.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </motion.button>
-                </motion.div>
+                      {/* Price — fixed width so it never overlaps the button */}
+                      <div
+                        style={{
+                          width: "210px",
+                          flexShrink: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "flex-end",
+                          paddingRight: "8px",
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontFamily: FONT,
+                            fontWeight: 700,
+                            fontSize: item.price.includes("–") ? "21px" : "26px",
+                            lineHeight: "120%",
+                            letterSpacing: "-0.01em",
+                            color: "#000000",
+                            margin: 0,
+                            textAlign: "right",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {item.price}
+                        </p>
+                      </div>
 
-                {/* Horizontal divider between and below rows */}
-                <div style={DIVIDER_LINE} />
-              </motion.div>
-            ))}
+                      <VerticalDivider />
+
+                      {/* CTA — fixed width */}
+                      <div
+                        style={{
+                          width: "190px",
+                          flexShrink: 0,
+                          display: "flex",
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <motion.a
+                          href={item.bookingUrl || "#search"}
+                          target={item.bookingUrl ? "_blank" : undefined}
+                          rel={item.bookingUrl ? "noopener noreferrer" : undefined}
+                          whileHover={{
+                            scale: 1.03,
+                            boxShadow: "0 8px 24px rgba(25, 125, 241, 0.35)",
+                          }}
+                          whileTap={{ scale: 0.96 }}
+                          style={{
+                            ...btnStyle,
+                            width: "178px",
+                            height: "52px",
+                            borderRadius: "9px",
+                            border: "none",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "10px",
+                            flexShrink: 0,
+                            textDecoration: "none",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontFamily: FONT,
+                              fontWeight: 700,
+                              fontSize: "17px",
+                              lineHeight: "1",
+                              color: "#FFFFFF",
+                            }}
+                          >
+                            View Deal
+                          </span>
+                          <svg
+                            width="20"
+                            height="14"
+                            viewBox="0 0 22 15"
+                            fill="none"
+                            style={{ flexShrink: 0 }}
+                          >
+                            <path
+                              d="M1 7.5H20M14 1.5L20 7.5L14 13.5"
+                              stroke="#FFFFFF"
+                              strokeWidth="2.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </motion.a>
+                      </div>
+                    </motion.div>
+
+                    <div style={DIVIDER_LINE} />
+                  </motion.div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
