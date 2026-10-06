@@ -58,7 +58,7 @@ export type CompareRequest = {
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://taxiscannerbackend.vercel.app/api";
+  "https://taxiscannerbackend.vercel.app/api/v1/";
 
 export async function fetchCompareQuotes(
   payload: CompareRequest
