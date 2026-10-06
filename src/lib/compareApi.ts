@@ -56,10 +56,15 @@ export type CompareRequest = {
   dropoff: string;
 };
 
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "https://taxiscannerbackend.vercel.app/api";
+
 export async function fetchCompareQuotes(
   payload: CompareRequest
 ): Promise<CompareResponse> {
-  const res = await fetch("/api/compare", {
+  const baseUrl = API_BASE_URL.replace(/\/$/, "");
+  const res = await fetch(`${baseUrl}/compare`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

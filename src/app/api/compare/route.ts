@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const DEFAULT_BASE = "https://scant-volumes-flip.ngrok-free.dev/api/v1";
+const DEFAULT_BASE = "https://taxiscannerbackend.vercel.app/api/";
 
 export async function POST(request: Request) {
   try {
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const base = (DEFAULT_BASE).replace(/\/$/, "");
+    const base = DEFAULT_BASE.replace(/\/$/, "");
     const upstream = await fetch(`${base}/compare`, {
       method: "POST",
       headers: {
