@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const DEFAULT_BASE = "https://taxiscannerbackend.vercel.app/api/";
+const DEFAULT_BASE = "https://taxiscannerbackend.vercel.app/api/v1/";
 
 export async function POST(request: Request) {
   try {
