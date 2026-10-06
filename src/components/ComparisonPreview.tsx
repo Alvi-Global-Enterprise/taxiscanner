@@ -65,6 +65,8 @@ const FALLBACK_ROWS = [
     bookingUrl: null as string | null,
     highlight: false,
   },
+
+
   {
     key: "primecabs",
     logo: "/images/companies/primecabs.png",
@@ -258,7 +260,7 @@ export function ComparisonPreview({
         )}
 
         <div style={{ width: "100%", overflowX: "auto" }}>
-          <div style={{ minWidth: "1180px" }}>
+          <div style={{ minWidth: "1000px" }}>
             <div style={DIVIDER_LINE} />
 
             {rows.length === 0 && !loading ? (
@@ -440,44 +442,6 @@ export function ComparisonPreview({
                             Live estimate
                           </p>
                         )}
-                      </div>
-
-                      <VerticalDivider />
-
-                      {/* ETA */}
-                      <div
-                        style={{
-                          width: "130px",
-                          flexShrink: 0,
-                          display: "flex",
-                          flexDirection: "column",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <p
-                          style={{
-                            fontFamily: FONT,
-                            fontWeight: 700,
-                            fontSize: "20px",
-                            lineHeight: "130%",
-                            color: "#000000",
-                            margin: 0,
-                          }}
-                        >
-                          {item.eta}
-                        </p>
-                        <p
-                          style={{
-                            fontFamily: FONT,
-                            fontWeight: 700,
-                            fontSize: "14px",
-                            color: "#000000",
-                            opacity: 0.44,
-                            margin: "2px 0 0",
-                          }}
-                        >
-                          Estimated ETA
-                        </p>
                       </div>
 
                       <VerticalDivider />
