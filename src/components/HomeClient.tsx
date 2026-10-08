@@ -28,13 +28,13 @@ export function HomeClient() {
   }, []);
 
   const handleCompare = useCallback(
-    async ({ pickup, dropoff }: CompareRequest) => {
+    async (payload: CompareRequest) => {
       setLoading(true);
       setError(null);
       scrollToComparison();
 
       try {
-        const result = await fetchCompareQuotes({ pickup, dropoff });
+        const result = await fetchCompareQuotes(payload);
         setCompareData(result.data ?? null);
         scrollToComparison();
       } catch (err) {
@@ -60,11 +60,13 @@ export function HomeClient() {
         />
         <FeatureSection />
         <HowItWorks />
-        <ComparisonPreview
-          data={compareData}
-          loading={loading}
-          error={error}
-        />
+        {(loading || compareData || error) && (
+          <ComparisonPreview
+            data={compareData}
+            loading={loading}
+            error={error}
+          />
+        )}
         <WhyChoose />
         <Testimonials />
         <OperatorsCTA />
