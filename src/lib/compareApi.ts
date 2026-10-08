@@ -1,3 +1,6 @@
+import axios from "axios";
+import { apiClient } from "@/lib/apiClient";
+
 export type CompareLocation = {
   query: string;
   formatted_address: string;
@@ -54,38 +57,56 @@ export type CompareResponse = {
 export type CompareRequest = {
   pickup: string;
   dropoff: string;
+  pickup_lat?: number;
+  pickup_lon?: number;
+  dropoff_lat?: number;
+  dropoff_lon?: number;
+  pickup_name?: string;
+  dropoff_name?: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://taxiscannerbackend.vercel.app/api/v1/";
+export { API_BASE_URL } from "@/lib/apiClient";
 
 export async function fetchCompareQuotes(
   payload: CompareRequest
 ): Promise<CompareResponse> {
-  const baseUrl = API_BASE_URL.replace(/\/$/, "");
-  const res = await fetch(`${baseUrl}/compare`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await apiClient.post<CompareResponse>("/compare", payload);
+    const data = response.data;
 
-  const json = (await res.json().catch(() => null)) as CompareResponse | null;
+    if (!data?.success || !data?.data) {
+      throw new Error(data?.message || data?.error || "No quotes returned");
+    }
 
-  if (!res.ok) {
-    throw new Error(
-      json?.message || json?.error || `Compare request failed (${res.status})`
-    );
+    return data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const serverMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        (typeof error.response?.data === "string" ? error.response.data : null);
+
+      if (serverMessage) {
+        throw new Error(serverMessage);
+      }
+
+      if (error.code === "ECONNABORTED") {
+        throw new Error("Request timed out. Please try again.");
+      }
+
+      if (!error.response) {
+        throw new Error("Unable to connect to server. Please check your internet connection.");
+      }
+
+      throw new Error(`Compare request failed (${error.response.status})`);
+    }
+
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    throw new Error("Failed to compare prices. Please try again.");
   }
-
-  if (!json?.success || !json.data) {
-    throw new Error(json?.message || json?.error || "No quotes returned");
-  }
-
-  return json;
 }
 
 export function formatQuotePrice(quote: CompareQuote): string {

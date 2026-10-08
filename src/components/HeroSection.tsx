@@ -6,6 +6,8 @@ import { Check, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { trustItems } from "@/lib/data";
 import { Navbar } from "@/components/Navbar";
+import { CompareRequest } from "@/lib/compareApi";
+import { PlaceAutocompleteInput } from "@/components/PlaceAutocompleteInput";
 
 const FONT = "'Noto Sans JP', 'LINE Seed JP', 'Plus Jakarta Sans', system-ui, sans-serif";
 
@@ -100,7 +102,7 @@ function BookingCheckbox({
 }
 
 type HeroSectionProps = {
-  onCompare?: (payload: { pickup: string; dropoff: string }) => Promise<void> | void;
+  onCompare?: (payload: CompareRequest) => Promise<void> | void;
   comparing?: boolean;
   compareError?: string | null;
 };
@@ -112,6 +114,16 @@ export function HeroSection({
 }: HeroSectionProps) {
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
+  const [pickupCoords, setPickupCoords] = useState<{
+    lat: number;
+    lon: number;
+    name: string;
+  } | null>(null);
+  const [dropoffCoords, setDropoffCoords] = useState<{
+    lat: number;
+    lon: number;
+    name: string;
+  } | null>(null);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [bookingMode, setBookingMode] = useState<"now" | "later">("now");
@@ -128,7 +140,16 @@ export function HeroSection({
     }
 
     setLocalError(null);
-    await onCompare?.({ pickup: pickupValue, dropoff: dropoffValue });
+    await onCompare?.({
+      pickup: pickupValue,
+      dropoff: dropoffValue,
+      pickup_lat: pickupCoords?.lat,
+      pickup_lon: pickupCoords?.lon,
+      dropoff_lat: dropoffCoords?.lat,
+      dropoff_lon: dropoffCoords?.lon,
+      pickup_name: pickupCoords?.name,
+      dropoff_name: dropoffCoords?.name,
+    });
   };
 
   const formError = localError || compareError;
@@ -275,7 +296,7 @@ export function HeroSection({
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.75, delay: 0.48, ease: "easeOut" }}
-          style={{ marginTop: "46px", maxWidth: "1160px" }}
+          style={{ marginTop: "46px", maxWidth: "1160px", position: "relative", zIndex: 30 }}
         >
           <form onSubmit={onSubmit}>
             <div
@@ -283,7 +304,7 @@ export function HeroSection({
                 background: "#FFFFFF",
                 boxShadow: "-3px 2px 28.5px #C5ECFF",
                 borderRadius: "18px",
-                overflow: "hidden",
+                overflow: "visible",
                 transition: "all 0.25s ease",
               }}
             >
@@ -297,70 +318,38 @@ export function HeroSection({
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.1fr_1.1fr_auto_auto] items-end"
                 >
                   {/* Pickup Location */}
-                  <label style={{ display: "block" }}>
-                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
-                      PICKUP LOCATION
-                    </span>
-                    <div style={{ position: "relative" }}>
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "14px",
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          pointerEvents: "none",
-                          display: "flex",
-                          alignItems: "center",
-                          zIndex: 1,
-                        }}
-                      >
-                        <MapPin size={17} fill="#197DF1" color="#197DF1" />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Enter Pickup Location"
-                        value={pickup}
-                        onChange={(e) => setPickup(e.target.value)}
-                        style={inputBox}
-                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
-                        required
-                        disabled={comparing}
-                      />
-                    </div>
-                  </label>
+                  <PlaceAutocompleteInput
+                    label="PICKUP LOCATION"
+                    placeholder="Enter Pickup Location"
+                    value={pickup}
+                    onChange={(val) => {
+                      setPickup(val);
+                      if (!val) setPickupCoords(null);
+                    }}
+                    onSelectCoords={setPickupCoords}
+                    icon={<MapPin size={17} fill="#197DF1" color="#197DF1" />}
+                    labelStyle={labelStyle}
+                    inputBoxStyle={inputBox}
+                    required
+                    disabled={comparing}
+                  />
 
                   {/* Drop-off Location */}
-                  <label style={{ display: "block" }}>
-                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
-                      DROP-OFF LOCATION
-                    </span>
-                    <div style={{ position: "relative" }}>
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "14px",
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          pointerEvents: "none",
-                          display: "flex",
-                          alignItems: "center",
-                          zIndex: 1,
-                        }}
-                      >
-                        <MapPin size={17} fill="#08C5A1" color="#08C5A1" />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Enter Drop-Off Location"
-                        value={dropoff}
-                        onChange={(e) => setDropoff(e.target.value)}
-                        style={inputBox}
-                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
-                        required
-                        disabled={comparing}
-                      />
-                    </div>
-                  </label>
+                  <PlaceAutocompleteInput
+                    label="DROP-OFF LOCATION"
+                    placeholder="Enter Drop-Off Location"
+                    value={dropoff}
+                    onChange={(val) => {
+                      setDropoff(val);
+                      if (!val) setDropoffCoords(null);
+                    }}
+                    onSelectCoords={setDropoffCoords}
+                    icon={<MapPin size={17} fill="#08C5A1" color="#08C5A1" />}
+                    labelStyle={labelStyle}
+                    inputBoxStyle={inputBox}
+                    required
+                    disabled={comparing}
+                  />
 
                   {/* Booking Mode options (Book Now / Book Later) */}
                   <div style={{ alignSelf: "end" }}>
@@ -444,70 +433,38 @@ export function HeroSection({
                   className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_auto_0.75fr_0.75fr_auto] items-end"
                 >
                   {/* Pickup Location */}
-                  <label style={{ display: "block" }}>
-                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
-                      PICKUP LOCATION
-                    </span>
-                    <div style={{ position: "relative" }}>
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "14px",
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          pointerEvents: "none",
-                          display: "flex",
-                          alignItems: "center",
-                          zIndex: 1,
-                        }}
-                      >
-                        <MapPin size={17} fill="#197DF1" color="#197DF1" />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Enter Pickup Location"
-                        value={pickup}
-                        onChange={(e) => setPickup(e.target.value)}
-                        style={inputBox}
-                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
-                        required
-                        disabled={comparing}
-                      />
-                    </div>
-                  </label>
+                  <PlaceAutocompleteInput
+                    label="PICKUP LOCATION"
+                    placeholder="Enter Pickup Location"
+                    value={pickup}
+                    onChange={(val) => {
+                      setPickup(val);
+                      if (!val) setPickupCoords(null);
+                    }}
+                    onSelectCoords={setPickupCoords}
+                    icon={<MapPin size={17} fill="#197DF1" color="#197DF1" />}
+                    labelStyle={labelStyle}
+                    inputBoxStyle={inputBox}
+                    required
+                    disabled={comparing}
+                  />
 
                   {/* Drop-off Location */}
-                  <label style={{ display: "block" }}>
-                    <span className="text-[12px] lg:text-[13px] xxl:text-[17px]" style={labelStyle}>
-                      DROP-OFF LOCATION
-                    </span>
-                    <div style={{ position: "relative" }}>
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "14px",
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          pointerEvents: "none",
-                          display: "flex",
-                          alignItems: "center",
-                          zIndex: 1,
-                        }}
-                      >
-                        <MapPin size={17} fill="#08C5A1" color="#08C5A1" />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Enter Drop-Off Location"
-                        value={dropoff}
-                        onChange={(e) => setDropoff(e.target.value)}
-                        style={inputBox}
-                        className="text-[11px] lg:text-[13px] xxl:text-[16px] placeholder:text-[#94A3B8]"
-                        required
-                        disabled={comparing}
-                      />
-                    </div>
-                  </label>
+                  <PlaceAutocompleteInput
+                    label="DROP-OFF LOCATION"
+                    placeholder="Enter Drop-Off Location"
+                    value={dropoff}
+                    onChange={(val) => {
+                      setDropoff(val);
+                      if (!val) setDropoffCoords(null);
+                    }}
+                    onSelectCoords={setDropoffCoords}
+                    icon={<MapPin size={17} fill="#08C5A1" color="#08C5A1" />}
+                    labelStyle={labelStyle}
+                    inputBoxStyle={inputBox}
+                    required
+                    disabled={comparing}
+                  />
 
                   {/* Booking Mode Checkboxes */}
                   <div style={{ alignSelf: "end" }}>
