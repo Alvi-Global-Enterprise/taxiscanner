@@ -61,7 +61,7 @@ export function HomeClient() {
         <FeatureSection />
         <HowItWorks />
         {(loading || compareData || error) && (
-          <ComparisonPreview
+          <ComparisonPreview  
             data={compareData}
             loading={loading}
             error={error}

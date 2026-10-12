@@ -63,6 +63,7 @@ export type CompareRequest = {
   dropoff_lon?: number;
   pickup_name?: string;
   dropoff_name?: string;
+  passengers?: number;
 };
 
 export { API_BASE_URL } from "@/lib/apiClient";

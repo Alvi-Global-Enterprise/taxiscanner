@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import Image from "next/image";
-import { Check, MapPin } from "lucide-react";
+import { Check, MapPin, Users, Minus, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 import { trustItems } from "@/lib/data";
 import { Navbar } from "@/components/Navbar";
@@ -101,6 +101,232 @@ function BookingCheckbox({
   );
 }
 
+function PassengerCounter({
+  value,
+  onChange,
+  disabled = false,
+  labelStyle,
+}: {
+  value: number;
+  onChange: (val: number) => void;
+  disabled?: boolean;
+  labelStyle: React.CSSProperties;
+}) {
+  const [inputValue, setInputValue] = useState<string>(String(value || 4));
+
+  useEffect(() => {
+    setInputValue(String(value || 4));
+  }, [value]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const digitsOnly = raw.replace(/[^0-9]/g, "");
+
+    if (!digitsOnly) {
+      setInputValue("");
+      return;
+    }
+
+    // Maximum digit to enter is 8 (clamped 1 to 8)
+    const lastDigit = parseInt(digitsOnly.slice(-1), 10);
+    let clamped = lastDigit;
+    if (clamped > 8) clamped = 8;
+    if (clamped < 1) clamped = 1;
+
+    setInputValue(String(clamped));
+    onChange(clamped);
+  };
+
+  const handleBlur = () => {
+    if (!inputValue || parseInt(inputValue, 10) < 1) {
+      setInputValue("4");
+      onChange(4);
+    } else {
+      const num = parseInt(inputValue, 10);
+      const clamped = Math.min(8, Math.max(1, num));
+      setInputValue(String(clamped));
+      onChange(clamped);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      handleIncrement();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      handleDecrement();
+    }
+  };
+
+  const handleDecrement = () => {
+    if (disabled) return;
+    const current = parseInt(inputValue, 10) || 4;
+    if (current > 1) {
+      const next = current - 1;
+      setInputValue(String(next));
+      onChange(next);
+    }
+  };
+
+  const handleIncrement = () => {
+    if (disabled) return;
+    const current = parseInt(inputValue, 10) || 4;
+    if (current < 8) {
+      const next = current + 1;
+      setInputValue(String(next));
+      onChange(next);
+    }
+  };
+
+  const numValue = parseInt(inputValue, 10) || value;
+
+  return (
+    <div style={{ alignSelf: "end" }}>
+      <label style={{ display: "block" }}>
+        <span
+          className="text-[12px] lg:text-[13px] xxl:text-[17px]"
+          style={labelStyle}
+        >
+          PASSENGERS
+        </span>
+        <div
+          style={{
+            height: "51px",
+            border: "1.5px solid #BED2E8",
+            borderRadius: "7px",
+            background: "#FFFFFF",
+            padding: "0 10px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "8px",
+            boxSizing: "border-box",
+            width: "100%",
+            minWidth: "152px",
+            transition: "border-color 0.15s ease",
+          }}
+        >
+          {/* Passenger Icon */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+            title="Passengers"
+          >
+            <Users size={17} color="#197DF1" />
+          </div>
+
+          {/* Decrement Button (-) */}
+          <button
+            type="button"
+            onClick={handleDecrement}
+            disabled={disabled || numValue <= 1}
+            aria-label="Decrease passenger count"
+            title="Decrease passengers"
+            style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "5px",
+              border: "1px solid #CAD8E8",
+              background: numValue <= 1 ? "#F8FAFC" : "#FFFFFF",
+              color: numValue <= 1 ? "#94A3B8" : "#197DF1",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: numValue <= 1 || disabled ? "not-allowed" : "pointer",
+              transition: "all 0.15s ease",
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            <Minus size={13} strokeWidth={2.6} />
+          </button>
+
+          {/* Value Input */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "3px",
+            }}
+          >
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[1-8]"
+              maxLength={1}
+              value={inputValue}
+              onChange={handleInputChange}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+              disabled={disabled}
+              title="Enter 1 to 8 passengers"
+              aria-label="Number of passengers (1-8)"
+              style={{
+                width: "20px",
+                textAlign: "center",
+                fontFamily: FONT,
+                fontWeight: 700,
+                fontSize: "15px",
+                lineHeight: "1",
+                color: "rgba(0,0,0,0.85)",
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                padding: 0,
+                cursor: disabled ? "not-allowed" : "text",
+              }}
+            />
+            <span
+              style={{
+                fontFamily: FONT,
+                fontWeight: 600,
+                fontSize: "12px",
+                color: "rgba(0,0,0,0.55)",
+                userSelect: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Pass.
+            </span>
+          </div>
+
+          {/* Increment Button (+) */}
+          <button
+            type="button"
+            onClick={handleIncrement}
+            disabled={disabled || numValue >= 8}
+            aria-label="Increase passenger count"
+            title="Increase passengers"
+            style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "5px",
+              border: "1px solid #CAD8E8",
+              background: numValue >= 8 ? "#F8FAFC" : "#FFFFFF",
+              color: numValue >= 8 ? "#94A3B8" : "#197DF1",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: numValue >= 8 || disabled ? "not-allowed" : "pointer",
+              transition: "all 0.15s ease",
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            <Plus size={13} strokeWidth={2.6} />
+          </button>
+        </div>
+      </label>
+    </div>
+  );
+}
+
 type HeroSectionProps = {
   onCompare?: (payload: CompareRequest) => Promise<void> | void;
   comparing?: boolean;
@@ -127,6 +353,7 @@ export function HeroSection({
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [bookingMode, setBookingMode] = useState<"now" | "later">("now");
+  const [passengers, setPassengers] = useState<number>(4);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const onSubmit = async (e: FormEvent) => {
@@ -149,6 +376,7 @@ export function HeroSection({
       dropoff_lon: dropoffCoords?.lon,
       pickup_name: pickupCoords?.name,
       dropoff_name: dropoffCoords?.name,
+      passengers,
     });
   };
 
@@ -315,7 +543,7 @@ export function HeroSection({
                     padding: "26px 30px 22px",
                     gap: "16px",
                   }}
-                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.1fr_1.1fr_auto_auto] items-end"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.1fr_1.1fr_auto_auto_auto] items-end"
                 >
                   {/* Pickup Location */}
                   <PlaceAutocompleteInput
@@ -354,8 +582,12 @@ export function HeroSection({
                   {/* Booking Mode options (Book Now / Book Later) */}
                   <div style={{ alignSelf: "end" }}>
                     <span
-                      className="text-[12px] lg:text-[13px] xxl:text-[17px] hidden lg:block"
-                      style={{ ...labelStyle, visibility: "hidden" }}
+                      className="text-[12px] lg:text-[13px] xxl:text-[17px]"
+                      style={{
+                        ...labelStyle,
+                        color: "rgba(0,0,0,0.55)",
+                        fontWeight: 500,
+                      }}
                     >
                       Booking Mode
                     </span>
@@ -380,6 +612,14 @@ export function HeroSection({
                       />
                     </div>
                   </div>
+
+                  {/* Number of Passengers */}
+                  <PassengerCounter
+                    value={passengers}
+                    onChange={setPassengers}
+                    disabled={comparing}
+                    labelStyle={labelStyle}
+                  />
 
                   {/* Submit button */}
                   <div style={{ alignSelf: "end" }}>
@@ -430,7 +670,7 @@ export function HeroSection({
                     padding: "26px 30px 22px",
                     gap: "14px",
                   }}
-                  className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.1fr_1.1fr_auto_0.75fr_0.75fr_auto] items-end"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[1.1fr_1.1fr_auto_auto_0.75fr_0.75fr_auto] items-end"
                 >
                   {/* Pickup Location */}
                   <PlaceAutocompleteInput
@@ -499,6 +739,14 @@ export function HeroSection({
                       />
                     </div>
                   </div>
+
+                  {/* Number of Passengers */}
+                  <PassengerCounter
+                    value={passengers}
+                    onChange={setPassengers}
+                    disabled={comparing}
+                    labelStyle={labelStyle}
+                  />
 
                   {/* Date */}
                   <label style={{ display: "block" }}>

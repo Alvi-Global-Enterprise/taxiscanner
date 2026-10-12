@@ -104,6 +104,7 @@ export async function POST(request: Request) {
       dropoff_coordinates: dropoffGeo
         ? { latitude: dropoffGeo.lat, longitude: dropoffGeo.lon }
         : null,
+      passengers: typeof body?.passengers === "number" ? body.passengers : 4,
     };
 
     const base = DEFAULT_BASE.replace(/\/$/, "");
