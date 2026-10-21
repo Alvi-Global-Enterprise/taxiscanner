@@ -57,58 +57,119 @@ export interface GeocodeOptions {
   timeoutMs?: number;
 }
 
-/**
- * Builds a readable formatted address string from Photon feature properties.
- */
-function buildFormattedAddress(props: PhotonProperties, defaultName: string): string {
-  const parts: string[] = [];
-
-  if (props.name) {
-    parts.push(props.name);
-  }
-
-  const streetAddress = [props.housenumber, props.street].filter(Boolean).join(" ");
-  if (streetAddress && !parts.includes(streetAddress)) {
-    parts.push(streetAddress);
-  }
-
-  const locality = props.locality || props.district;
-  if (locality && !parts.includes(locality)) {
-    parts.push(locality);
-  }
-
-  if (props.city && !parts.includes(props.city)) {
-    parts.push(props.city);
-  }
-
-  if (props.postcode && !parts.includes(props.postcode)) {
-    parts.push(props.postcode);
-  }
-
-  if (props.country && !parts.includes(props.country)) {
-    parts.push(props.country);
-  }
-
-  if (parts.length === 0) {
-    return defaultName;
-  }
-
-  // Remove duplicates while preserving order
-  const uniqueParts = Array.from(new Set(parts.map((p) => p.trim()).filter(Boolean)));
-  return uniqueParts.join(", ");
+export interface ParsedAddressQuery {
+  hasHouseNumber: boolean;
+  housePrefix: string;
+  streetQuery: string;
 }
 
 /**
- * Geocodes a location string using the Photon Komoot API.
+ * Extracts leading house / flat / unit numbers from an address search string.
+ * Examples:
+ * - "14 Victoria Road" -> housePrefix: "14", streetQuery: "Victoria Road"
+ * - "14b High Street, London" -> housePrefix: "14b", streetQuery: "High Street, London"
+ * - "12-14 High Street" -> housePrefix: "12-14", streetQuery: "High Street"
+ * - "Flat 3, 22 Baker Street" -> housePrefix: "Flat 3, 22", streetQuery: "Baker Street"
+ * - "Flat 2A Oxford Street" -> housePrefix: "Flat 2A", streetQuery: "Oxford Street"
+ * - "Apartment 5, Kings Road" -> housePrefix: "Apartment 5", streetQuery: "Kings Road"
+ * - "Unit 4, Trade Park" -> housePrefix: "Unit 4", streetQuery: "Trade Park"
+ * - "No. 10 Downing Street" -> housePrefix: "No. 10", streetQuery: "Downing Street"
+ */
+export function parseHouseNumberQuery(query: string): ParsedAddressQuery {
+  const trimmed = (query || "").trim();
+  if (!trimmed) {
+    return { hasHouseNumber: false, housePrefix: "", streetQuery: "" };
+  }
+
+  const regex = /^((?:(?:flat|apt|apartment|unit|suite|room|no\.?)\s+[a-z0-9\-]+(?:,?\s*\d+[a-z]?(?:-\d+[a-z]?)?)?)|(?:\d+[a-z]?(?:-\d+[a-z]?)?))\s*,?\s+(.+)$/i;
+
+  const match = trimmed.match(regex);
+  if (match && match[2]?.trim()) {
+    const rawPrefix = match[1].trim().replace(/,$/, "").trim();
+    const rest = match[2].trim();
+    return {
+      hasHouseNumber: true,
+      housePrefix: rawPrefix,
+      streetQuery: rest,
+    };
+  }
+
+  return {
+    hasHouseNumber: false,
+    housePrefix: "",
+    streetQuery: trimmed,
+  };
+}
+
+/**
+ * Formats name, subtitle, and fullAddress from Photon feature properties,
+ * cleanly integrating any house / unit number prefix if the feature lacks it.
+ */
+export function formatAddressParts(
+  props: PhotonProperties,
+  defaultName: string,
+  housePrefix?: string
+): { name: string; subtitle: string; fullAddress: string } {
+  const streetName = (props.street || "").trim();
+  let name = (props.name || "").trim();
+
+  // If props.name is missing, try building from housenumber + street
+  if (!name) {
+    if (props.housenumber && streetName) {
+      name = `${props.housenumber} ${streetName}`;
+    } else if (housePrefix && streetName) {
+      name = `${housePrefix} ${streetName}`;
+    } else {
+      name = streetName || defaultName;
+    }
+  } else if (
+    housePrefix &&
+    !props.housenumber &&
+    !name.toLowerCase().startsWith(housePrefix.toLowerCase())
+  ) {
+    // If name is just the street name or POI without the user's house number
+    name = `${housePrefix} ${name}`;
+  }
+
+  const subtitleParts = [
+    streetName && !name.toLowerCase().includes(streetName.toLowerCase()) ? streetName : null,
+    props.locality || props.district,
+    props.city,
+    props.postcode,
+    props.country,
+  ]
+    .map((p) => (typeof p === "string" ? p.trim() : ""))
+    .filter((p) => p && !name.toLowerCase().includes(p.toLowerCase()));
+
+  const uniqueSubtitle = Array.from(new Set(subtitleParts)).join(", ");
+  const fullAddress = uniqueSubtitle ? `${name}, ${uniqueSubtitle}` : name;
+
+  return {
+    name,
+    subtitle: uniqueSubtitle,
+    fullAddress,
+  };
+}
+
+/**
+ * Builds a readable formatted address string from Photon feature properties.
+ */
+function buildFormattedAddress(
+  props: PhotonProperties,
+  defaultName: string,
+  housePrefix?: string
+): string {
+  const formatted = formatAddressParts(props, defaultName, housePrefix);
+  return formatted.fullAddress;
+}
+
+/**
+ * Geocodes a location string using the Photon Komoot API with smart house-number support.
  *
  * Extracts:
  * - Coordinates: maps [longitude, latitude] -> { lat, lon }
  * - Location name & formatted address from feature properties
- *
- * Handles:
- * - Timeouts (via AbortController)
- * - Empty results
- * - Network or parsing failures
+ * - Preserves user house numbers even when OpenStreetMap lacks door-level data
  */
 export async function geocodeWithPhoton(
   query: string,
@@ -120,37 +181,78 @@ export async function geocodeWithPhoton(
   }
 
   const timeoutMs = options?.timeoutMs ?? 6000;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const parsed = parseHouseNumberQuery(trimmed);
 
-  const endpoint = `https://photon.komoot.io/api/?q=${encodeURIComponent(trimmed)}`;
+  const fetchFeatures = async (searchQuery: string): Promise<PhotonFeature[]> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const endpoint = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+        searchQuery
+      )}&limit=6&lat=51.5074&lon=-0.1278`;
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "TaxiScanner/1.0",
+        },
+        signal: controller.signal,
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const data = (await response.json()) as PhotonFeatureCollection;
+      return Array.isArray(data?.features) ? data.features : [];
+    } catch {
+      return [];
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
 
   try {
-    const response = await fetch(endpoint, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-      signal: controller.signal,
-      cache: "no-store",
-    });
+    // 1. Try geocoding full query first
+    const features = await fetchFeatures(trimmed);
 
-    if (!response.ok) {
-      console.warn(`[Photon] HTTP error: ${response.status} ${response.statusText} for "${trimmed}"`);
-      return null;
+    // Pick best UK feature if available
+    let bestFeature: PhotonFeature | null = null;
+    if (features.length > 0) {
+      const ukFeature = features.find(
+        (f) =>
+          f.properties?.countrycode === "GB" ||
+          f.properties?.country === "United Kingdom"
+      );
+      bestFeature = ukFeature || features[0];
     }
 
-    const data = (await response.json()) as PhotonFeatureCollection;
+    // 2. If no UK feature found and user provided a house number, fallback to searching the street
+    const isUK =
+      bestFeature?.properties?.countrycode === "GB" ||
+      bestFeature?.properties?.country === "United Kingdom";
 
-    if (!data || !Array.isArray(data.features) || data.features.length === 0) {
+    if ((!bestFeature || !isUK) && parsed.hasHouseNumber && parsed.streetQuery.length >= 2) {
+      const streetFeatures = await fetchFeatures(parsed.streetQuery);
+      if (streetFeatures.length > 0) {
+        const ukStreetFeature = streetFeatures.find(
+          (f) =>
+            f.properties?.countrycode === "GB" ||
+            f.properties?.country === "United Kingdom"
+        );
+        if (ukStreetFeature || !bestFeature) {
+          bestFeature = ukStreetFeature || streetFeatures[0];
+        }
+      }
+    }
+
+    if (!bestFeature) {
       console.warn(`[Photon] No results found for query: "${trimmed}"`);
       return null;
     }
 
-    const feature = data.features[0];
-    const coords = feature?.geometry?.coordinates;
-
-    // Photon returns coordinates in [longitude, latitude] format
+    const coords = bestFeature?.geometry?.coordinates;
     if (
       !coords ||
       !Array.isArray(coords) ||
@@ -166,30 +268,24 @@ export async function geocodeWithPhoton(
 
     const lon = coords[0];
     const lat = coords[1];
+    const properties = bestFeature.properties || {};
 
-    const properties = feature.properties || {};
-    const resolvedName = properties.name?.trim() || trimmed;
-    const formattedAddress = buildFormattedAddress(properties, resolvedName);
+    const effectivePrefix = parsed.hasHouseNumber ? parsed.housePrefix : undefined;
+    const formatted = formatAddressParts(properties, trimmed, effectivePrefix);
 
     return {
       query: trimmed,
-      name: resolvedName,
-      formatted_address: formattedAddress,
+      name: formatted.name,
+      formatted_address: formatted.fullAddress,
       lat,
       lon,
       city: properties.city || null,
       postcode: properties.postcode || null,
       country: properties.country || null,
-      rawFeature: feature,
+      rawFeature: bestFeature,
     };
   } catch (error: unknown) {
-    if (error instanceof Error && error.name === "AbortError") {
-      console.warn(`[Photon] Request timed out after ${timeoutMs}ms for query: "${trimmed}"`);
-    } else {
-      console.warn(`[Photon] Failed to geocode query: "${trimmed}"`, error);
-    }
+    console.warn(`[Photon] Failed to geocode query: "${trimmed}"`, error);
     return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }

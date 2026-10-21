@@ -35,11 +35,21 @@ export type CompareRoute = {
   is_estimated: boolean;
 };
 
+export type MatchedZoneInfo = {
+  id: string;
+  name: string;
+  displayName: string;
+  region: string;
+  matchType: "polygon" | "radius" | "keyword" | "none";
+};
+
 export type CompareData = {
   pickup: CompareLocation;
   dropoff: CompareLocation;
   route: CompareRoute;
   quotes: CompareQuote[];
+  matchedZone?: MatchedZoneInfo | null;
+  totalConfiguredOperators?: number;
 };
 
 export type CompareResponse = {

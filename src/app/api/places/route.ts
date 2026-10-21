@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { PhotonFeature } from "@/lib/photon";
+import {
+  PhotonFeature,
+  parseHouseNumberQuery,
+  formatAddressParts,
+} from "@/lib/photon";
 
 export interface PlaceSuggestion {
   name: string;
@@ -21,37 +25,67 @@ export async function GET(request: Request) {
       return NextResponse.json({ suggestions: [] });
     }
 
-    const endpoint = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-      query
-    )}&limit=10&lat=51.5074&lon=-0.1278`;
+    const parsed = parseHouseNumberQuery(query);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    const res = await fetch(endpoint, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-      signal: controller.signal,
-      cache: "no-store",
-    });
+    const fetchPhoton = async (searchTerm: string): Promise<PhotonFeature[]> => {
+      try {
+        const endpoint = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+          searchTerm
+        )}&limit=8&lat=51.5074&lon=-0.1278`;
 
+        const res = await fetch(endpoint, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "TaxiScanner/1.0",
+          },
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          return [];
+        }
+
+        const data = await res.json();
+        return Array.isArray(data?.features) ? data.features : [];
+      } catch {
+        return [];
+      }
+    };
+
+    // If query contains a house / flat / door number, query both the exact string
+    // and the street in parallel so that if OSM lacks door-level data, the street
+    // still resolves with the user's house number attached.
+    const promises: [Promise<PhotonFeature[]>, Promise<PhotonFeature[]>] = [
+      fetchPhoton(query),
+      parsed.hasHouseNumber && parsed.streetQuery.length >= 2
+        ? fetchPhoton(parsed.streetQuery)
+        : Promise.resolve([]),
+    ];
+
+    const [queryFeatures, streetFeatures] = await Promise.all(promises);
     clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      return NextResponse.json({ suggestions: [] });
+    // Merge and tag features
+    interface TaggedFeature {
+      feature: PhotonFeature;
+      isFromStreetQuery: boolean;
     }
 
-    const data = await res.json();
-    const features: PhotonFeature[] = Array.isArray(data?.features)
-      ? (data.features as PhotonFeature[])
-      : [];
+    const combined: TaggedFeature[] = [
+      ...queryFeatures.map((f) => ({ feature: f, isFromStreetQuery: false })),
+      ...streetFeatures.map((f) => ({ feature: f, isFromStreetQuery: true })),
+    ];
 
-    // Prioritize UK results if available
-    const sortedFeatures = [...features].sort((a, b) => {
-      const aProps = a.properties || {};
-      const bProps = b.properties || {};
+    // Prioritize UK results first, and prioritize exact house matches
+    combined.sort((a, b) => {
+      const aProps = a.feature.properties || {};
+      const bProps = b.feature.properties || {};
+
       const aUk =
         aProps.countrycode === "GB" ||
         aProps.country === "United Kingdom"
@@ -62,13 +96,27 @@ export async function GET(request: Request) {
         bProps.country === "United Kingdom"
           ? 1
           : 0;
-      return bUk - aUk;
+
+      if (bUk !== aUk) {
+        return bUk - aUk;
+      }
+
+      // If user typed house number, prioritize features that have house number
+      // or UK street matches over non-UK results
+      const aHasHouse = Boolean(aProps.housenumber);
+      const bHasHouse = Boolean(bProps.housenumber);
+      if (aHasHouse !== bHasHouse && !a.isFromStreetQuery && !b.isFromStreetQuery) {
+        return bHasHouse ? 1 : -1;
+      }
+
+      return 0;
     });
 
     const suggestions: PlaceSuggestion[] = [];
     const seenAddresses = new Set<string>();
 
-    for (const feat of sortedFeatures) {
+    for (const item of combined) {
+      const feat = item.feature;
       const coords = feat.geometry?.coordinates;
       if (
         !Array.isArray(coords) ||
@@ -82,32 +130,25 @@ export async function GET(request: Request) {
       const lon = coords[0];
       const lat = coords[1];
       const props = feat.properties || {};
-      const name = (props.name || "").trim() || query;
 
-      const subtitleParts = [
-        [props.housenumber, props.street].filter(Boolean).join(" "),
-        props.locality || props.district,
-        props.city,
-        props.postcode,
-        props.country,
-      ]
-        .map((p) => (typeof p === "string" ? p.trim() : ""))
-        .filter((p) => p && p !== name);
+      // If user provided a house number and feature doesn't already have one,
+      // apply the user's house number prefix
+      const effectivePrefix = parsed.hasHouseNumber ? parsed.housePrefix : undefined;
+      const fallbackName = item.isFromStreetQuery ? parsed.streetQuery : query;
 
-      const uniqueSubtitle = Array.from(new Set(subtitleParts)).join(", ");
-      const fullAddress = uniqueSubtitle ? `${name}, ${uniqueSubtitle}` : name;
+      const formatted = formatAddressParts(props, fallbackName, effectivePrefix);
 
       // Avoid duplicates
-      const dedupKey = fullAddress.toLowerCase();
+      const dedupKey = formatted.fullAddress.toLowerCase();
       if (seenAddresses.has(dedupKey)) {
         continue;
       }
       seenAddresses.add(dedupKey);
 
       suggestions.push({
-        name,
-        subtitle: uniqueSubtitle,
-        fullAddress,
+        name: formatted.name,
+        subtitle: formatted.subtitle,
+        fullAddress: formatted.fullAddress,
         lat,
         lon,
         city: props.city || null,
@@ -115,7 +156,7 @@ export async function GET(request: Request) {
         country: props.country || null,
       });
 
-      if (suggestions.length >= 6) {
+      if (suggestions.length >= 7) {
         break;
       }
     }

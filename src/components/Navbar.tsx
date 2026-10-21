@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
+import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { navLinks } from "@/lib/data";
@@ -100,21 +101,30 @@ export function Navbar() {
         </nav>
 
         {/* CTA Button */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:flex items-center gap-3">
+          <Link
+            href="/admin/operators"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 transition"
+            title="Open Admin UK Map & Operator Zones"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Admin: Operator Map
+          </Link>
+
           <motion.button
             onClick={scrollToSearch}
             whileHover={{ scale: 1.04, boxShadow: "0 8px 24px rgba(25, 125, 241, 0.35)" }}
             whileTap={{ scale: 0.96 }}
             style={{
-              width: "208px",
-              height: "59px",
+              width: "190px",
+              height: "54px",
               background: "#197DF1",
               borderRadius: "10px",
               border: "none",
               cursor: "pointer",
               fontFamily: "'LINE Seed JP', 'Inter', sans-serif",
               fontWeight: 700,
-              fontSize: "18px",
+              fontSize: "17px",
               lineHeight: "20px",
               color: "#FFFFFF",
               transition: "background 0.2s",
@@ -166,6 +176,14 @@ export function Navbar() {
                   {link.label}
                 </a>
               ))}
+              <Link
+                href="/admin/operators"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 p-3 rounded-lg text-sm font-bold text-blue-700 bg-blue-50 border border-blue-200"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Admin: Operator Map & Zones
+              </Link>
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={scrollToSearch}

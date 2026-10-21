@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { MapPin, ShieldCheck, AlertCircle } from "lucide-react";
 import {
   CompareData,
   CompareQuote,
@@ -333,12 +334,14 @@ export type ComparisonPreviewProps = {
   data?: CompareData | null;
   loading?: boolean;
   error?: string | null;
+  onOpenAdminMap?: () => void;
 };
 
 export function ComparisonPreview({
   data = null,
   loading = false,
   error = null,
+  onOpenAdminMap,
 }: ComparisonPreviewProps) {
   // Requirement: By default, this section is completely hidden until a comparison is triggered
   if (!loading && !data && !error) {
@@ -515,21 +518,73 @@ export function ComparisonPreview({
           )}
         </motion.div>
 
+        {data?.matchedZone && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50/90 via-indigo-50/70 to-emerald-50/80 border border-blue-200/80 shadow-sm flex flex-wrap items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm flex-shrink-0">
+                <MapPin size={20} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100/90 px-2.5 py-0.5 rounded-md">
+                    UK Town Geofence Active
+                  </span>
+                  <span className="text-xs font-semibold text-slate-700">
+                    Town Boundary: <strong className="text-slate-900">{data.matchedZone.displayName}</strong>
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-1">
+                  Only the <strong>{rows.length}</strong> taxi operators ticked by Admin for this town boundary are eligible to offer quotes.
+                </p>
+              </div>
+            </div>
+
+            {onOpenAdminMap && (
+              <button
+                type="button"
+                onClick={onOpenAdminMap}
+                className="flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900 bg-white hover:bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl shadow-xs transition"
+              >
+                <ShieldCheck size={14} />
+                Admin: View Town Boundaries Map
+              </button>
+            )}
+          </motion.div>
+        )}
+
         <div style={{ width: "100%", overflowX: "auto" }}>
           <div style={{ minWidth: "1000px" }}>
             <div style={DIVIDER_LINE} />
 
             {rows.length === 0 ? (
-              <p
-                style={{
-                  textAlign: "center",
-                  fontFamily: FONT,
-                  padding: "48px 20px",
-                  color: "rgba(0,0,0,0.55)",
-                }}
-              >
-                No quotes available for this route right now.
-              </p>
+              <div className="text-center py-16 px-6 bg-slate-50 rounded-2xl border border-slate-200 my-6 max-w-xl mx-auto">
+                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-3">
+                  <AlertCircle size={22} />
+                </div>
+                <h4 className="font-bold text-slate-900 text-base mb-1">
+                  No Ticked Operators in this Boundary
+                </h4>
+                <p className="text-xs text-slate-500 mb-4">
+                  {data?.matchedZone
+                    ? `No taxi companies are currently ticked to operate in the ${data.matchedZone.displayName} boundary.`
+                    : "No taxi companies are currently active in this area."}{" "}
+                  An admin can assign operators to this town on the map.
+                </p>
+                {onOpenAdminMap && (
+                  <button
+                    type="button"
+                    onClick={onOpenAdminMap}
+                    className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition shadow-sm"
+                  >
+                    Open Admin Map to Tick Operators
+                  </button>
+                )}
+              </div>
             ) : (
               rows.map((item, idx) => {
                 const btnStyle = item.highlight
