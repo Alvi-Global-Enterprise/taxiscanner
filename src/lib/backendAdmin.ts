@@ -2,6 +2,8 @@
  * Server-only helpers for Next.js Route Handlers → Laravel admin API.
  */
 
+import { NextResponse } from "next/server";
+
 export function getBackendApiBase(): string {
   const raw =
     process.env.BACKEND_API_BASE ||
@@ -30,7 +32,6 @@ export async function backendAdminFetch(
   init: RequestInit = {}
 ): Promise<Response> {
   const result = await backendAdminRequest(path, init);
-  // Preserve previous Response-like usage for callers that still use res.json()
   return new Response(result.rawText, {
     status: result.status,
     headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -94,14 +95,14 @@ export async function backendAdminRequest(
 export async function proxyBackendAdminJson(
   path: string,
   init: RequestInit = {}
-): Promise<Response> {
+): Promise<NextResponse> {
   try {
     const result = await backendAdminRequest(path, init);
-    return Response.json(result.data ?? { success: false }, {
+    return NextResponse.json(result.data ?? { success: false }, {
       status: result.status,
     });
   } catch (e) {
-    return Response.json(
+    return NextResponse.json(
       {
         success: false,
         message: e instanceof Error ? e.message : "Admin backend request failed",
