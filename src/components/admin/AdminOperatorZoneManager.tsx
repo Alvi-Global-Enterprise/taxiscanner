@@ -1,597 +1,591 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  TaxiCompany,
-  loadTaxiCompanies,
-  saveTaxiCompanies,
-  resetTaxiCompaniesToDefault,
-} from "@/lib/operatorZonesStore";
-import { UK_TOWN_ZONES } from "@/lib/ukZonesData";
-import { UKTownsLeafletMap } from "./UKTownsLeafletMap";
+  AdminProvider,
+  fetchAdminProviders,
+  syncProviderTowns,
+} from "@/lib/adminApi";
+import { getFullUkCoverageIds, UK_TOWN_ZONES } from "@/lib/ukZonesData";
+import { UKTownsLeafletMapClient } from "./UKTownsLeafletMapClient";
+import { AdminShell } from "./AdminShell";
 import {
   Search,
-  Plus,
   Check,
   MapPin,
   Building2,
-  Trash2,
-  RotateCcw,
   ShieldCheck,
+  Loader2,
+  Globe2,
+  Save,
+  Trash2,
 } from "lucide-react";
+
+const BRAND_COLORS: Record<string, string> = {
+  uber: "#000000",
+  bolt: "#34D186",
+  streetcars: "#197DF1",
+  veezu: "#E11D48",
+};
 
 type Props = {
   onClose?: () => void;
+  /** When true, owns AdminShell and puts taxi firms under the left nav. */
+  withShell?: boolean;
 };
 
-export function AdminOperatorZoneManager({ onClose }: Props) {
-  const [companies, setCompanies] = useState<TaxiCompany[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+export function AdminOperatorZoneManager({ onClose, withShell = false }: Props) {
+  const [providers, setProviders] = useState<AdminProvider[]>([]);
+  const [selectedSlug, setSelectedSlug] = useState("");
   const [companySearch, setCompanySearch] = useState("");
   const [townSearch, setTownSearch] = useState("");
   const [countryFilter, setCountryFilter] = useState<string>("all");
+  const [layerFilter, setLayerFilter] = useState<string>("coverage");
   const [focusedZoneId, setFocusedZoneId] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  /** Local ticks — only sent to backend when Save is clicked */
+  const [draftTowns, setDraftTowns] = useState<string[]>([]);
+  const savedTownsRef = useRef<string[]>([]);
 
-  // New Company Modal state
-  const [isAddingCompany, setIsAddingCompany] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState("#197DF1");
-  const [newBaseFare, setNewBaseFare] = useState("3.50");
-  const [newPerMile, setNewPerMile] = useState("2.10");
-  const [newPhone, setNewPhone] = useState("+44 ");
-  const [newBookingUrl, setNewBookingUrl] = useState("https://");
-  const [newVehicle, setNewVehicle] = useState("Standard Saloon");
-
-  // Load companies
-  useEffect(() => {
-    const list = loadTaxiCompanies();
-    setCompanies(list);
-    if (list.length > 0) {
-      setSelectedCompanyId(list[0].id);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await fetchAdminProviders();
+      setProviders(list);
+      setSelectedSlug((prev) => prev || list[0]?.slug || "");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load firms");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  const selectedCompany = useMemo(() => {
-    return companies.find((c) => c.id === selectedCompanyId) || companies[0];
-  }, [companies, selectedCompanyId]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const selected = useMemo(
+    () => providers.find((p) => p.slug === selectedSlug) || null,
+    [providers, selectedSlug]
+  );
+
+  // Load draft when firm changes (or first load finishes)
+  useEffect(() => {
+    if (loading) return;
+    const firm = providers.find((p) => p.slug === selectedSlug);
+    if (!firm) {
+      setDraftTowns([]);
+      savedTownsRef.current = [];
+      return;
+    }
+    const towns = [...(firm.towns || [])];
+    setDraftTowns(towns);
+    savedTownsRef.current = towns;
+    // intentionally not depending on providers — only firm switch / initial load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlug, loading]);
+
+  const isDirty = useMemo(() => {
+    const a = [...draftTowns].sort().join(",");
+    const b = [...savedTownsRef.current].sort().join(",");
+    return a !== b;
+  }, [draftTowns]);
 
   const filteredCompanies = useMemo(() => {
-    return companies.filter((c) =>
-      c.name.toLowerCase().includes(companySearch.toLowerCase())
+    return providers.filter((p) =>
+      p.display_name.toLowerCase().includes(companySearch.toLowerCase())
     );
-  }, [companies, companySearch]);
+  }, [providers, companySearch]);
 
   const filteredTowns = useMemo(() => {
+    const layerOrder = { all_uk: 0, nation: 1, region: 2, city: 3 } as Record<
+      string,
+      number
+    >;
     return UK_TOWN_ZONES.filter((zone) => {
       const matchesText =
         zone.name.toLowerCase().includes(townSearch.toLowerCase()) ||
         zone.region.toLowerCase().includes(townSearch.toLowerCase());
       const matchesCountry =
-        countryFilter === "all" || zone.country.toLowerCase() === countryFilter.toLowerCase();
-      return matchesText && matchesCountry;
-    });
-  }, [townSearch, countryFilter]);
+        countryFilter === "all" ||
+        zone.country.toLowerCase() === countryFilter.toLowerCase() ||
+        (countryFilter === "united kingdom" && zone.layer === "all_uk");
+      const layer = zone.layer || "city";
+      const matchesLayer =
+        layerFilter === "all" ||
+        (layerFilter === "coverage" &&
+          (layer === "all_uk" || layer === "nation" || layer === "region")) ||
+        layer === layerFilter;
+      return matchesText && matchesCountry && matchesLayer;
+    }).sort(
+      (a, b) =>
+        (layerOrder[a.layer || "city"] ?? 9) - (layerOrder[b.layer || "city"] ?? 9) ||
+        a.name.localeCompare(b.name)
+    );
+  }, [townSearch, countryFilter, layerFilter]);
 
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Toggle town coverage for active company
+  const selectFirm = (slug: string) => {
+    if (slug === selectedSlug) return;
+    if (isDirty) {
+      const ok = window.confirm(
+        "You have unsaved coverage changes. Switch firm and discard them?"
+      );
+      if (!ok) return;
+    }
+    setSelectedSlug(slug);
+  };
+
   const handleToggleTown = (townId: string) => {
-    if (!selectedCompany) return;
-
-    const currentTowns = selectedCompany.assignedTownIds;
-    const exists = currentTowns.includes(townId);
-    const updatedTowns = exists
-      ? currentTowns.filter((id) => id !== townId)
-      : [...currentTowns, townId];
-
-    const updatedCompanies = companies.map((c) =>
-      c.id === selectedCompany.id ? { ...c, assignedTownIds: updatedTowns } : c
-    );
-
-    setCompanies(updatedCompanies);
-    saveTaxiCompanies(updatedCompanies);
-
-    const townName = UK_TOWN_ZONES.find((z) => z.id === townId)?.name || townId;
-    showToast(
-      exists
-        ? `Removed "${townName}" from ${selectedCompany.name}`
-        : `Added "${townName}" to ${selectedCompany.name}`
+    if (!selected || saving) return;
+    setDraftTowns((prev) =>
+      prev.includes(townId) ? prev.filter((id) => id !== townId) : [...prev, townId]
     );
   };
 
   const handleSelectAllFilteredTowns = () => {
-    if (!selectedCompany) return;
-    const toAdd = filteredTowns.map((t) => t.id);
-    const set = new Set([...selectedCompany.assignedTownIds, ...toAdd]);
-    const updatedTowns = Array.from(set);
-
-    const updatedCompanies = companies.map((c) =>
-      c.id === selectedCompany.id ? { ...c, assignedTownIds: updatedTowns } : c
+    if (!selected || saving) return;
+    setDraftTowns((prev) =>
+      Array.from(new Set([...prev, ...filteredTowns.map((t) => t.id)]))
     );
-    setCompanies(updatedCompanies);
-    saveTaxiCompanies(updatedCompanies);
-    showToast(`Added ${toAdd.length} towns to ${selectedCompany.name}`);
   };
 
   const handleClearAllTowns = () => {
-    if (!selectedCompany) return;
-    const updatedCompanies = companies.map((c) =>
-      c.id === selectedCompany.id ? { ...c, assignedTownIds: [] } : c
+    if (!selected || saving) return;
+    if (draftTowns.length === 0) return;
+    const ok = window.confirm(
+      `Clear all coverage zones for ${selected.display_name}? Click Save afterwards to apply.`
     );
-    setCompanies(updatedCompanies);
-    saveTaxiCompanies(updatedCompanies);
-    showToast(`Cleared all towns for ${selectedCompany.name}`);
+    if (!ok) return;
+    setDraftTowns([]);
   };
 
-  const handleDeleteCompany = (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete ${name}?`)) {
-      const remaining = companies.filter((c) => c.id !== id);
-      setCompanies(remaining);
-      saveTaxiCompanies(remaining);
-      if (selectedCompanyId === id && remaining.length > 0) {
-        setSelectedCompanyId(remaining[0].id);
-      }
-      showToast(`Deleted ${name}`);
+  const handleCoverEntireUk = () => {
+    if (!selected || saving) return;
+    setDraftTowns(getFullUkCoverageIds());
+  };
+
+  const handleDiscard = () => {
+    setDraftTowns([...savedTownsRef.current]);
+    setError(null);
+  };
+
+  const handleSave = async () => {
+    if (!selected || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await syncProviderTowns(selected.slug, draftTowns);
+      setProviders((prev) => prev.map((p) => (p.slug === updated.slug ? updated : p)));
+      const towns = [...(updated.towns || [])];
+      setDraftTowns(towns);
+      savedTownsRef.current = towns;
+      showToast(`Saved coverage for ${updated.display_name}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save coverage");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleCreateCompany = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim()) return;
+  const coversEntireUk = Boolean(
+    draftTowns.includes("all_uk") ||
+      (draftTowns.includes("england") &&
+        draftTowns.includes("scotland") &&
+        draftTowns.includes("wales") &&
+        draftTowns.includes("northern_ireland"))
+  );
 
-    const newId = newName.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_" + Date.now();
-    const newCompany: TaxiCompany = {
-      id: newId,
-      name: newName.trim(),
-      brandColor: newColor,
-      baseFare: parseFloat(newBaseFare) || 3.5,
-      perMileRate: parseFloat(newPerMile) || 2.1,
-      minEtaMinutes: 5,
-      rating: 4.8,
-      phone: newPhone.trim(),
-      bookingUrl: newBookingUrl.trim(),
-      vehicleType: newVehicle,
-      assignedTownIds: [],
-      isActive: true,
-    };
+  const brandColor = (slug: string) => BRAND_COLORS[slug] || "#197DF1";
 
-    const updated = [newCompany, ...companies];
-    setCompanies(updated);
-    saveTaxiCompanies(updated);
-    setSelectedCompanyId(newId);
-    setIsAddingCompany(false);
+  const firmsSidebar = (
+    <div className="flex flex-col">
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
+        <Building2 size={16} className="text-blue-600" />
+        Taxi firms ({providers.length})
+      </h3>
+      <div className="relative mb-2">
+        <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Search firms..."
+          value={companySearch}
+          onChange={(e) => setCompanySearch(e.target.value)}
+          className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+        />
+      </div>
+      <div className="max-h-[420px] space-y-1.5 overflow-y-auto pr-1">
+        {filteredCompanies.map((company) => {
+          const isSelected = selected?.slug === company.slug;
+          const count = isSelected ? draftTowns.length : company.towns?.length || 0;
+          const entireUk = isSelected
+            ? draftTowns.includes("all_uk")
+            : company.towns?.includes("all_uk");
+          return (
+            <button
+              type="button"
+              key={company.slug}
+              onClick={() => selectFirm(company.slug)}
+              className={`w-full rounded-xl border p-2.5 text-left transition ${
+                isSelected
+                  ? "border-blue-600 bg-blue-50/70 ring-1 ring-blue-600"
+                  : "border-slate-200 bg-white hover:border-slate-300"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className="h-3.5 w-3.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: brandColor(company.slug) }}
+                />
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-bold text-slate-900">
+                    {company.display_name}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {count === 0 ? (
+                      <span className="font-medium text-amber-600">No coverage</span>
+                    ) : entireUk ? (
+                      <span className="font-medium text-emerald-600">Entire UK</span>
+                    ) : (
+                      <span className="font-medium text-emerald-600">
+                        {count} zone(s)
+                      </span>
+                    )}
+                    {isSelected && isDirty ? (
+                      <span className="ml-1 font-bold text-amber-600">· unsaved</span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
-    // Reset form
-    setNewName("");
-    setNewBaseFare("3.50");
-    setNewPerMile("2.10");
-
-    showToast(`Created company "${newCompany.name}"! Now tick towns on the map to grant coverage.`);
-  };
-
-  const handleResetDefaults = () => {
-    if (confirm("Reset all taxi companies and town boundaries to original defaults?")) {
-      const defaults = resetTaxiCompaniesToDefault();
-      setCompanies(defaults);
-      setSelectedCompanyId(defaults[0]?.id || "");
-      showToast("Reset to default UK taxi companies and coverage!");
-    }
-  };
-
-  return (
-    <div className="bg-slate-50 text-slate-900 rounded-2xl border border-slate-200 overflow-hidden shadow-2xl">
-      {/* Toast Notification */}
-      {notification && (
-        <div className="fixed top-6 right-6 z-[9999] bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 animate-in fade-in slide-in-from-top-4 duration-200">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+  const mainPanel = loading ? (
+    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-8 text-slate-600 shadow-sm">
+      <Loader2 className="animate-spin" size={18} />
+      Loading town coverage from backend…
+    </div>
+  ) : (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 shadow-2xl">
+      {notification ? (
+        <div className="fixed right-6 top-6 z-[9999] flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 text-white shadow-xl">
+          <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400" />
           <span className="text-sm font-semibold">{notification}</span>
         </div>
-      )}
+      ) : null}
 
-      {/* Header Bar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-5 flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
               <ShieldCheck size={18} />
             </div>
             <h2 className="text-xl font-bold tracking-tight text-slate-900">
-              UK Taxi Companies & Coverage Geofencing
+              UK Coverage Map
             </h2>
-            <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs px-2.5 py-0.5 rounded-full font-bold">
-              Admin Portal
+            <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
+              Anywhere in the UK
             </span>
           </div>
-          <p className="text-sm text-slate-500 mt-1">
-            Tick towns on the map for each taxi company. When a customer searches within a town boundary,
-            only companies ticked for that boundary can offer quotes.
+          <p className="mt-1 text-sm text-slate-500">
+            Select a firm on the left, then tick coverage zones. Use{" "}
+            <strong>Cover entire UK</strong> for nationwide.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={handleResetDefaults}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
-            title="Reset to sample UK operators"
-          >
-            <RotateCcw size={14} />
-            Reset Defaults
-          </button>
-          {onClose && (
+        <div className="flex flex-wrap items-center gap-2.5">
+          {isDirty ? (
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800">
+              Unsaved changes
+            </span>
+          ) : null}
+          {onClose ? (
             <button
-              onClick={onClose} 
-              className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+              type="button"
+              onClick={onClose}
+              className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
             >
               Done / Close
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
-      {/* Main Grid: Left sidebar (companies), Center (Map), Right (Towns Checklist) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[640px]">
-        {/* Left Column: Companies List (3 cols) */}
-        <div className="lg:col-span-3 bg-white border-r border-slate-200 p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-              <Building2 size={16} className="text-blue-600" />
-              UK Taxi Companies ({companies.length})
-            </h3>
-            <button
-              onClick={() => setIsAddingCompany(true)}
-              className="flex items-center gap-1 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-2.5 py-1.5 rounded-lg shadow-sm transition"
-            >
-              <Plus size={14} /> Add Company
-            </button>
-          </div>
-
-          {/* Search company input */}
-          <div className="relative mb-3">
-            <Search size={14} className="absolute left-3 top-3 text-slate-400" />
-            <input
-              type="text" 
-              placeholder="Search companies..."
-              value={companySearch}
-              onChange={(e) => setCompanySearch(e.target.value)}
-              className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            />
-          </div>
-
-          {/* Scrollable List */}
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[500px]">
-            {filteredCompanies.map((company) => {
-              const isSelected = selectedCompany?.id === company.id;
-              const count = company.assignedTownIds.length;
-
-              return (
-                <div
-                  key={company.id}
-                  onClick={() => setSelectedCompanyId(company.id)}
-                  className={`p-3 rounded-xl border text-left cursor-pointer transition flex items-center justify-between ${
-                    isSelected
-                      ? "border-blue-600 bg-blue-50/70 shadow-sm ring-1 ring-blue-600"
-                      : "border-slate-200 hover:border-slate-300 bg-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className="w-4 h-4 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: company.brandColor }}
-                    />
-                    <div className="min-w-0">
-                      <div className="font-bold text-xs text-slate-900 truncate">
-                        {company.name}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        {count === 0 ? (
-                          <span className="text-amber-600 font-medium">No towns ticked</span>
-                        ) : (
-                          <span className="text-emerald-600 font-medium">
-                            {count} {count === 1 ? "town" : "towns"} ticked
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {companies.length > 1 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteCompany(company.id, company.name);
-                      }}
-                      className="text-slate-400 hover:text-red-500 p-1 rounded transition"
-                      title="Delete company"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      {error ? (
+        <div className="mx-4 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700">
+          {error}
         </div>
+      ) : null}
 
-        {/* Center Column: Interactive Map (6 cols) */}
-        <div className="lg:col-span-6 p-4 flex flex-col bg-slate-100/60 border-r border-slate-200">
-          {/* Active Company Banner */}
-          {selectedCompany && (
-            <div className="bg-white p-3.5 rounded-xl border border-slate-200 mb-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      {/* Map + wide coverage zones (firms live under left nav) */}
+      <div className="grid min-h-[640px] grid-cols-1 xl:grid-cols-12">
+        <div className="flex flex-col border-r border-slate-200 bg-slate-100/60 p-4 xl:col-span-7">
+          {selected ? (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
               <div className="flex items-center gap-3">
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-sm"
-                  style={{ backgroundColor: selectedCompany.brandColor }}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold text-white shadow-sm"
+                  style={{ backgroundColor: brandColor(selected.slug) }}
                 >
-                  {selectedCompany.name.slice(0, 2).toUpperCase()}
+                  {selected.display_name.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900 text-sm">
-                      {selectedCompany.name}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold text-slate-900">
+                      {selected.display_name}
                     </span>
-                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">
-                      Base: £{selectedCompany.baseFare.toFixed(2)} + £{selectedCompany.perMileRate.toFixed(2)}/mi
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                      mode: {selected.coverage_mode}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                    <span>Active in: <strong className="text-blue-600">{selectedCompany.assignedTownIds.length}</strong> UK towns</span>
-                    <span>•</span>
-                    <span>Vehicle: {selectedCompany.vehicleType}</span>
+                  <div className="mt-0.5 text-xs text-slate-500">
+                    {coversEntireUk ? (
+                      <span className="font-semibold text-emerald-700">
+                        Covers entire United Kingdom — any UK pickup
+                      </span>
+                    ) : (
+                      <>
+                        Active in:{" "}
+                        <strong className="text-blue-600">{draftTowns.length}</strong>{" "}
+                        zone(s)
+                        {isDirty ? (
+                          <span className="ml-1 font-bold text-amber-600">(unsaved)</span>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
-
-              <div className="text-xs text-slate-500 bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-lg font-medium">
-                Tip: Click polygons on map to toggle coverage
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                Tick zones, then click Save Coverage
               </div>
             </div>
-          )}
+          ) : null}
 
-          {/* Leaflet UK Map Component */}
-          <div className="flex-1 min-h-[460px]">
-            <UKTownsLeafletMap
-              selectedTownIds={selectedCompany?.assignedTownIds || []}
+          <div className="h-[520px] w-full shrink-0">
+            <UKTownsLeafletMapClient
+              selectedTownIds={draftTowns}
               onToggleTown={handleToggleTown}
-              activeCompanyColor={selectedCompany?.brandColor || "#197DF1"}
+              activeCompanyColor={selected ? brandColor(selected.slug) : "#197DF1"}
               focusedZoneId={focusedZoneId}
-              height="100%"
+              height="520px"
             />
           </div>
         </div>
 
-        {/* Right Column: Towns & Cities Checklist (3 cols) */}
-        <div className="lg:col-span-3 bg-white p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-              <MapPin size={16} className="text-blue-600" />
-              UK Towns & Cities ({filteredTowns.length})
-            </h3>
-          </div>
+        <div className="flex min-w-0 flex-col bg-white xl:col-span-5">
+          <div className="flex flex-1 flex-col p-4 pb-0">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="flex items-center gap-1.5 text-sm font-bold text-slate-800">
+                <MapPin size={16} className="text-blue-600" />
+                Coverage zones ({filteredTowns.length})
+              </h3>
+            </div>
 
-          {/* Search towns */}
-          <div className="relative mb-2">
-            <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search towns (e.g. Manchester, Leeds)..."
-              value={townSearch}
-              onChange={(e) => setTownSearch(e.target.value)}
-              className="w-full text-xs pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            />
-          </div>
+            <div className="relative mb-2">
+              <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search (UK, England, Manchester)..."
+                value={townSearch}
+                onChange={(e) => setTownSearch(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
 
-          {/* Filter Pills */}
-          <div className="flex gap-1 mb-2.5 overflow-x-auto pb-1 text-[11px]">
-            {["all", "england", "scotland", "wales", "northern ireland"].map((c) => (
-              <button
-                key={c}
-                onClick={() => setCountryFilter(c)}
-                className={`px-2 py-0.5 rounded capitalize whitespace-nowrap transition font-medium ${
-                  countryFilter === c
-                    ? "bg-blue-600 text-white font-bold"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {c === "all" ? "All UK" : c}
-              </button>
-            ))}
-          </div>
-
-          {/* Bulk actions */}
-          <div className="flex items-center justify-between gap-2 mb-2 text-[11px]">
-            <button
-              onClick={handleSelectAllFilteredTowns}
-              className="text-blue-600 hover:text-blue-800 font-bold hover:underline"
-            >
-              + Tick all shown
-            </button>
-            <button
-              onClick={handleClearAllTowns}
-              className="text-slate-500 hover:text-red-600 hover:underline"
-            >
-              Clear all
-            </button>
-          </div>
-
-          {/* Towns Checklist */}
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[460px]">
-            {filteredTowns.map((zone) => {
-              const isChecked = selectedCompany?.assignedTownIds.includes(zone.id);
-
-              return (
-                <div
-                  key={zone.id}
-                  onClick={() => handleToggleTown(zone.id)}
-                  className={`px-3 py-2 rounded-lg border text-xs cursor-pointer flex items-center justify-between transition ${
-                    isChecked
-                      ? "border-emerald-500 bg-emerald-50/50 text-slate-900"
-                      : "border-slate-100 hover:border-slate-200 bg-white text-slate-700"
+            <div className="mb-1.5 flex gap-1 overflow-x-auto pb-1 text-xs">
+              {[
+                ["coverage", "UK layers"],
+                ["all_uk", "Entire UK"],
+                ["nation", "Nations"],
+                ["region", "Regions"],
+                ["city", "Cities"],
+                ["all", "Everything"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setLayerFilter(id)}
+                  className={`whitespace-nowrap rounded px-2.5 py-1 font-medium transition ${
+                    layerFilter === id
+                      ? "bg-blue-600 font-bold text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition ${
-                        isChecked
-                          ? "bg-emerald-600 border-emerald-600 text-white"
-                          : "border-slate-300 bg-white"
-                      }`}
-                    >
-                      {isChecked && <Check size={11} strokeWidth={3} />}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-semibold truncate">{zone.name}</div>
-                      <div className="text-[10px] text-slate-400">
-                        {zone.region}
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mb-3 flex gap-1 overflow-x-auto pb-1 text-xs">
+              {["all", "england", "scotland", "wales", "northern ireland"].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCountryFilter(c)}
+                  className={`whitespace-nowrap rounded px-2.5 py-1 capitalize font-medium transition ${
+                    countryFilter === c
+                      ? "bg-slate-800 font-bold text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {c === "all" ? "Any country" : c}
+                </button>
+              ))}
+            </div>
+
+            <div className="mb-2 grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={handleCoverEntireUk}
+                disabled={saving || !selected}
+                className="inline-flex items-center justify-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+              >
+                <Globe2 size={12} />
+                Cover entire UK
+              </button>
+              <button
+                type="button"
+                onClick={handleSelectAllFilteredTowns}
+                disabled={saving || !selected}
+                className="inline-flex items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 disabled:opacity-50"
+              >
+                <Check size={12} />
+                Tick all shown
+              </button>
+            </div>
+
+            <div className="max-h-[380px] flex-1 space-y-1.5 overflow-y-auto pr-1">
+              {filteredTowns.map((zone) => {
+                const isChecked = draftTowns.includes(zone.id);
+                return (
+                  <div
+                    key={zone.id}
+                    onClick={() => handleToggleTown(zone.id)}
+                    className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition ${
+                      isChecked
+                        ? "border-emerald-500 bg-emerald-50/50 text-slate-900"
+                        : "border-slate-100 bg-white text-slate-700 hover:border-slate-200"
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border transition ${
+                          isChecked
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-slate-300 bg-white"
+                        }`}
+                      >
+                        {isChecked ? <Check size={12} strokeWidth={3} /> : null}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold">{zone.name}</div>
+                        <div className="text-xs text-slate-400">
+                          {(zone.layer || "city").replace("_", " ")} · {zone.region}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setFocusedZoneId(zone.id);
-                    }}
-                    className="text-[10px] text-blue-600 hover:underline px-1 py-0.5"
-                    title="Zoom on map"
-                  >
-                    View
-                  </button>
-                </div>
-              );
-            })}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFocusedZoneId(zone.id);
+                      }}
+                      className="px-1 py-0.5 text-xs text-blue-600 hover:underline"
+                      title="Zoom on map"
+                    >
+                      View
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Sticky action bar — always visible */}
+          <div className="sticky bottom-0 border-t border-slate-200 bg-white px-3 py-2.5 shadow-[0_-6px_16px_rgba(15,23,42,0.05)]">
+            <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500">
+              <span>
+                Selected: <strong className="text-slate-800">{draftTowns.length}</strong>{" "}
+                zone(s)
+              </span>
+              {isDirty ? (
+                <span className="font-semibold text-amber-600">Not saved yet</span>
+              ) : (
+                <span className="font-medium text-emerald-600">All changes saved</span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={handleClearAllTowns}
+                disabled={saving || !selected || draftTowns.length === 0}
+                className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+              >
+                <Trash2 size={12} />
+                Clear all
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscard}
+                disabled={saving || !selected || !isDirty}
+                className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={saving || !selected || !isDirty}
+                className="col-span-2 inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-2 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 sm:col-span-1"
+              >
+                {saving ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Save size={12} />
+                )}
+                Save coverage
+              </button>
+            </div>
           </div>
         </div>
       </div>
+    </div>
+  );
 
-      {/* Add New Taxi Company Modal */}
-      {isAddingCompany && (
-        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">
-              Add New UK Taxi Company
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Enter company details. You will then be able to tick which UK towns/cities it serves.
-            </p>
+  if (withShell) {
+    return (
+      <AdminShell
+        title="Town Map"
+        subtitle="Assign UK coverage to firms (synced to backend)."
+        wide
+        sidebarExtra={loading ? undefined : firmsSidebar}
+      >
+        {mainPanel}
+      </AdminShell>
+    );
+  }
 
-            <form onSubmit={handleCreateCompany} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Company Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Manchester Royal Cabs"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Base Fare (£)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.10"
-                    value={newBaseFare}
-                    onChange={(e) => setNewBaseFare(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Rate per Mile (£)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.10"
-                    value={newPerMile}
-                    onChange={(e) => setNewPerMile(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Vehicle Type
-                  </label>
-                  <input
-                    type="text"
-                    value={newVehicle}
-                    onChange={(e) => setNewVehicle(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Brand Color
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={newColor}
-                      onChange={(e) => setNewColor(e.target.value)}
-                      className="w-8 h-8 rounded border p-0 cursor-pointer"
-                    />
-                    <span className="text-xs text-slate-500 font-mono">{newColor}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Contact Phone
-                </label>
-                <input
-                  type="text"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Website / Booking URL
-                </label>
-                <input
-                  type="url"
-                  value={newBookingUrl}
-                  onChange={(e) => setNewBookingUrl(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddingCompany(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition"
-                >
-                  Create & Select Towns
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+  // Legacy embed: show firms inline above map if shell not used
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        {firmsSidebar}
+      </div>
+      {mainPanel}
     </div>
   );
 }

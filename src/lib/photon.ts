@@ -152,18 +152,6 @@ export function formatAddressParts(
 }
 
 /**
- * Builds a readable formatted address string from Photon feature properties.
- */
-function buildFormattedAddress(
-  props: PhotonProperties,
-  defaultName: string,
-  housePrefix?: string
-): string {
-  const formatted = formatAddressParts(props, defaultName, housePrefix);
-  return formatted.fullAddress;
-}
-
-/**
  * Geocodes a location string using the Photon Komoot API with smart house-number support.
  *
  * Extracts:

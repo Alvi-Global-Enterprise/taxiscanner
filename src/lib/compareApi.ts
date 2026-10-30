@@ -134,3 +134,18 @@ export function formatPickupEta(minutes: number | null | undefined): string {
   if (minutes == null || Number.isNaN(minutes)) return "—";
   return `${minutes} mins`;
 }
+
+/** Fire-and-forget booking click for admin stats */
+export function trackBookingClick(
+  providerSlug: string,
+  pickupPostcode?: string | null
+): void {
+  void apiClient
+    .post("/track/click", {
+      provider_slug: providerSlug,
+      pickup_postcode: pickupPostcode || undefined,
+    })
+    .catch(() => {
+      /* non-blocking */
+    });
+}

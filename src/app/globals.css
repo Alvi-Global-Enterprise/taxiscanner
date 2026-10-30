@@ -26,6 +26,46 @@ body {
   }
 }
 
+/* Leaflet map: real height + undo Tailwind preflight that breaks tiles */
+.uk-towns-leaflet-map.leaflet-container,
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  background: #e8eef5;
+  font: inherit;
+  z-index: 0;
+}
+
+.leaflet-container img,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas,
+.leaflet-zoom-box,
+.leaflet-image-layer,
+.leaflet-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.uk-town-tooltip {
+  border-radius: 8px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12) !important;
+}
+
 /* nicer native date/time inputs */
 input[type="date"],
 input[type="time"] {

@@ -1,9 +1,12 @@
 import { UKTownZone, UK_TOWN_ZONES } from "./ukZonesData";
 
-/**
- * Standard ray-casting algorithm for Point in Polygon
- * Checks if point [lat, lng] is inside polygon [[lat, lng], ...]
- */
+const LAYER_RANK: Record<string, number> = {
+  city: 1,
+  region: 2,
+  nation: 3,
+  all_uk: 4,
+};
+
 export function isPointInPolygon(
   point: [number, number],
   polygon: [number, number][]
@@ -19,19 +22,14 @@ export function isPointInPolygon(
 
     const intersect =
       yi > lng !== yj > lng &&
-      lat < ((xj - xi) * (lng - yi)) / (yj - yi) + xi;
+      lat < ((xj - xi) * (lng - yi)) / (yj - yi || 1e-12) + xi;
 
-    if (intersect) {
-      inside = !inside;
-    }
+    if (intersect) inside = !inside;
   }
 
   return inside;
 }
 
-/**
- * Haversine distance in Kilometers between two lat/lng points
- */
 export function haversineDistanceKm(
   lat1: number,
   lon1: number,
@@ -39,7 +37,7 @@ export function haversineDistanceKm(
   lon2: number
 ): number {
   const toRad = (v: number) => (v * Math.PI) / 180;
-  const R = 6371; // Earth radius in km
+  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
@@ -54,15 +52,21 @@ export function haversineDistanceKm(
 
 export type ZoneMatchResult = {
   zone: UKTownZone | null;
-  matchType: "polygon" | "radius" | "keyword" | "none";
+  matchType: "polygon" | "radius" | "keyword" | "nearest" | "none";
   distanceKm?: number;
+  matchingIds: string[];
 };
 
+function pickPrimary(zones: UKTownZone[]): UKTownZone {
+  return [...zones].sort(
+    (a, b) =>
+      (LAYER_RANK[a.layer || "city"] ?? 9) - (LAYER_RANK[b.layer || "city"] ?? 9)
+  )[0];
+}
+
 /**
- * Resolves which UK Town / City Zone a customer's pickup belongs to.
- * 1. Checks exact boundary polygon inclusion
- * 2. Checks radius proximity around zone center
- * 3. Checks keyword/city name matches
+ * Resolves which UK coverage zone(s) a pickup belongs to.
+ * Returns all containing layers so firms with All UK / nation / region / city all match.
  */
 export function resolvePickupZone(params: {
   lat?: number | null;
@@ -71,55 +75,87 @@ export function resolvePickupZone(params: {
   query?: string | null;
 }): ZoneMatchResult {
   const { lat, lon, locationName, query } = params;
+  const hits: UKTownZone[] = [];
 
-  // 1. Point-in-polygon check if coordinates available
   if (typeof lat === "number" && typeof lon === "number" && !isNaN(lat) && !isNaN(lon)) {
     for (const zone of UK_TOWN_ZONES) {
       if (isPointInPolygon([lat, lon], zone.boundary)) {
+        hits.push(zone);
+      }
+    }
+
+    if (hits.length === 0) {
+      let closest: UKTownZone | null = null;
+      let minDistance = Infinity;
+      for (const zone of UK_TOWN_ZONES) {
+        if (zone.layer === "all_uk") continue;
+        const dist = haversineDistanceKm(lat, lon, zone.center[0], zone.center[1]);
+        if (dist <= zone.radiusKm && dist < minDistance) {
+          minDistance = dist;
+          closest = zone;
+        }
+      }
+      if (closest) {
+        hits.push(closest);
+        const allUk = UK_TOWN_ZONES.find((z) => z.layer === "all_uk");
+        if (allUk) hits.push(allUk);
         return {
-          zone,
-          matchType: "polygon",
-          distanceKm: haversineDistanceKm(lat, lon, zone.center[0], zone.center[1]),
+          zone: pickPrimary(hits),
+          matchType: "radius",
+          distanceKm: minDistance,
+          matchingIds: Array.from(new Set(hits.map((z) => z.id))),
         };
       }
-    }
 
-    // 2. Proximity / Radius check (closest zone within radiusKm)
-    let closestZone: UKTownZone | null = null;
-    let minDistance = Infinity;
-
-    for (const zone of UK_TOWN_ZONES) {
-      const dist = haversineDistanceKm(lat, lon, zone.center[0], zone.center[1]);
-      if (dist <= zone.radiusKm && dist < minDistance) {
-        minDistance = dist;
-        closestZone = zone;
+      let nearest: UKTownZone | null = null;
+      let nearestDist = Infinity;
+      for (const zone of UK_TOWN_ZONES) {
+        if (!["city", "region", "nation"].includes(zone.layer || "city")) continue;
+        const dist = haversineDistanceKm(lat, lon, zone.center[0], zone.center[1]);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = zone;
+        }
       }
-    }
-
-    if (closestZone) {
+      if (nearest && nearestDist <= 80) {
+        hits.push(nearest);
+        const allUk = UK_TOWN_ZONES.find((z) => z.layer === "all_uk");
+        if (allUk) hits.push(allUk);
+        return {
+          zone: pickPrimary(hits),
+          matchType: "nearest",
+          distanceKm: nearestDist,
+          matchingIds: Array.from(new Set(hits.map((z) => z.id))),
+        };
+      }
+    } else {
+      if (!hits.some((z) => z.layer === "all_uk")) {
+        const allUk = UK_TOWN_ZONES.find((z) => z.layer === "all_uk");
+        if (allUk) hits.push(allUk);
+      }
       return {
-        zone: closestZone,
-        matchType: "radius",
-        distanceKm: minDistance,
+        zone: pickPrimary(hits),
+        matchType: "polygon",
+        matchingIds: Array.from(new Set(hits.map((z) => z.id))),
       };
     }
   }
 
-  // 3. Fallback: Keyword search in text
   const text = `${locationName || ""} ${query || ""}`.toLowerCase();
-  if (text.trim().length > 0) {
+  if (text.trim()) {
     for (const zone of UK_TOWN_ZONES) {
       if (zone.keywords.some((k) => text.includes(k))) {
-        return {
-          zone,
-          matchType: "keyword",
-        };
+        hits.push(zone);
       }
+    }
+    if (hits.length) {
+      return {
+        zone: pickPrimary(hits),
+        matchType: "keyword",
+        matchingIds: Array.from(new Set(hits.map((z) => z.id))),
+      };
     }
   }
 
-  return {
-    zone: null,
-    matchType: "none",
-  };
+  return { zone: null, matchType: "none", matchingIds: [] };
 }

@@ -2,12 +2,13 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { MapPin, ShieldCheck, AlertCircle } from "lucide-react";
+import { MapPin, AlertCircle } from "lucide-react";
 import {
   CompareData,
   CompareQuote,
   formatPickupEta,
   formatQuotePrice,
+  trackBookingClick,
 } from "@/lib/compareApi";
 
 const FONT =
@@ -334,14 +335,12 @@ export type ComparisonPreviewProps = {
   data?: CompareData | null;
   loading?: boolean;
   error?: string | null;
-  onOpenAdminMap?: () => void;
 };
 
 export function ComparisonPreview({
   data = null,
   loading = false,
   error = null,
-  onOpenAdminMap,
 }: ComparisonPreviewProps) {
   // Requirement: By default, this section is completely hidden until a comparison is triggered
   if (!loading && !data && !error) {
@@ -518,7 +517,7 @@ export function ComparisonPreview({
           )}
         </motion.div>
 
-        {data?.matchedZone && (
+        {data?.pickup?.postcode && (
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
@@ -532,28 +531,19 @@ export function ComparisonPreview({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100/90 px-2.5 py-0.5 rounded-md">
-                    UK Town Geofence Active
+                    Postcode coverage
                   </span>
                   <span className="text-xs font-semibold text-slate-700">
-                    Town Boundary: <strong className="text-slate-900">{data.matchedZone.displayName}</strong>
+                    Pickup postcode:{" "}
+                    <strong className="text-slate-900">{data.pickup.postcode}</strong>
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 mt-1">
-                  Only the <strong>{rows.length}</strong> taxi operators ticked by Admin for this town boundary are eligible to offer quotes.
+                  Showing <strong>{rows.length}</strong> firm
+                  {rows.length === 1 ? "" : "s"} covering this area (backend estimates).
                 </p>
               </div>
             </div>
-
-            {onOpenAdminMap && (
-              <button
-                type="button"
-                onClick={onOpenAdminMap}
-                className="flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900 bg-white hover:bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl shadow-xs transition"
-              >
-                <ShieldCheck size={14} />
-                Admin: View Town Boundaries Map
-              </button>
-            )}
           </motion.div>
         )}
 
@@ -567,23 +557,14 @@ export function ComparisonPreview({
                   <AlertCircle size={22} />
                 </div>
                 <h4 className="font-bold text-slate-900 text-base mb-1">
-                  No Ticked Operators in this Boundary
+                  No firms available for this area
                 </h4>
-                <p className="text-xs text-slate-500 mb-4">
-                  {data?.matchedZone
-                    ? `No taxi companies are currently ticked to operate in the ${data.matchedZone.displayName} boundary.`
-                    : "No taxi companies are currently active in this area."}{" "}
-                  An admin can assign operators to this town on the map.
+                <p className="text-xs text-slate-500">
+                  {data?.pickup?.postcode
+                    ? `We could not find taxi firms covering pickup postcode ${data.pickup.postcode} right now.`
+                    : "We could not find taxi firms for this pickup area right now."}{" "}
+                  Please try a different pickup location or check again later.
                 </p>
-                {onOpenAdminMap && (
-                  <button
-                    type="button"
-                    onClick={onOpenAdminMap}
-                    className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition shadow-sm"
-                  >
-                    Open Admin Map to Tick Operators
-                  </button>
-                )}
               </div>
             ) : (
               rows.map((item, idx) => {
@@ -891,6 +872,14 @@ export function ComparisonPreview({
                               ? "noopener noreferrer"
                               : undefined
                           }
+                          onClick={() => {
+                            if (item.provider) {
+                              trackBookingClick(
+                                item.provider,
+                                data?.pickup?.postcode
+                              );
+                            }
+                          }}
                           whileHover={{
                             scale: 1.03,
                             boxShadow: "0 8px 24px rgba(25, 125, 241, 0.35)",
